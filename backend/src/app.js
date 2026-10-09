@@ -17,7 +17,12 @@ export function createApp() {
   const app = express();
 
   // CORS configuration: Allow local development frontend origins
-  const devOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+  const devOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://192.168.0.104:5175'
+];
   const envOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean)
     : [];
