@@ -1,0 +1,219 @@
+/**
+ * CODEBUFFET — Design System Tokens
+ * Student Success Intelligence Platform
+ * Central design tokens: Colors, Typography, Spacing, Elevation, and Radii
+ * Inspired by STITH Plan UI/UX Reference Architecture
+ */
+
+:root {
+  /* ==========================================================================
+     1. COLOR TOKENS & STITH PLAN PALETTE
+     ========================================================================== */
+
+  /* CODEBUFFET Primary Brand Palette */
+  --color-brand-blue: #1E6BFF;
+  --color-brand-indigo: #4F46E5;
+  --color-brand-purple: #8B5CF6;
+  --color-brand-cyan: #06B6D4;
+  --color-brand-dark: #0F172A;
+
+  /* STITH Plan Reference Palette */
+  --color-stith-blue: #1E6BFF;
+  --color-stith-blue-subtle: #EFF6FF;
+  --color-stith-blue-border: #BFDBFE;
+  --color-stith-green: #10B981;
+  --color-stith-green-subtle: #ECFDF5;
+  --color-stith-green-border: #A7F3D0;
+  --color-stith-red: #EF4444;
+  --color-stith-red-subtle: #FEF2F2;
+  --color-stith-red-border: #FECACA;
+  --color-stith-purple: #8B5CF6;
+  --color-stith-purple-subtle: #FAF5FF;
+  --color-stith-purple-border: #E9D5FF;
+  --color-stith-amber: #F59E0B;
+  --color-stith-amber-subtle: #FFFBEB;
+  --color-stith-amber-border: #FDE68A;
+
+  /* Surfaces & Structural Canvases */
+  --color-stith-canvas: #F4F7FC;
+  --color-stith-sidebar: #FFFFFF;
+  --color-stith-card: #FFFFFF;
+  --color-stith-card-border: #E2E8F0;
+  --color-stith-input-bg: #F1F5F9;
+
+  /* High-Contrast Navy Hero Palette (Cinematic Night Campus) */
+  --color-navy: #0F172A;
+  --color-navy-deep: #090E1A;
+  --color-navy-surface: #1E293B;
+  --color-blue-primary: #1E6BFF;
+  --color-blue-bright: #38BDF8;
+  --color-blue-surface: #EFF6FF;
+  --color-white: #FFFFFF;
+
+  /* Interactive States */
+  --color-blue-primary-hover: #1754CC;
+  --color-blue-primary-active: #1344A6;
+  --color-blue-bright-hover: #0EA5E9;
+
+  /* Neutrals & Typography */
+  --color-text-main: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
+  --color-text-subtle: #CBD5E1;
+  --color-text-inverse: #FFFFFF;
+  --color-text-inverse-muted: #94A3B8;
+
+  /* Surfaces & Structural Borders */
+  --color-border: #E2E8F0;
+  --color-border-subtle: #F1F5F9;
+  --color-border-strong: #CBD5E1;
+  --color-bg-page: #F4F7FC;
+  --color-bg-card: #FFFFFF;
+  --color-bg-alt: #F8FAFC;
+
+  /* Functional Status & Risk Tokens */
+  --color-status-success: #10B981;
+  --color-status-warning: #F59E0B;
+  --color-status-danger: #EF4444;
+  --color-status-neutral: #64748B;
+
+  /* Surface Tints for Badges & Alerts */
+  --color-status-success-bg: rgba(16, 185, 129, 0.10);
+  --color-status-success-border: rgba(16, 185, 129, 0.28);
+  --color-status-warning-bg: rgba(245, 158, 11, 0.10);
+  --color-status-warning-border: rgba(245, 158, 11, 0.28);
+  --color-status-danger-bg: rgba(239, 68, 68, 0.10);
+  --color-status-danger-border: rgba(239, 68, 68, 0.28);
+  --color-status-neutral-bg: rgba(100, 116, 139, 0.10);
+  --color-status-neutral-border: rgba(100, 116, 139, 0.22);
+  --color-blue-surface-border: rgba(30, 107, 255, 0.20);
+
+  /* Chart Visualizer Palette */
+  --chart-color-1: #1E6BFF; /* Primary Royal Blue */
+  --chart-color-2: #10B981; /* Emerald Green */
+  --chart-color-3: #F59E0B; /* Amber */
+  --chart-color-4: #8B5CF6; /* Violet */
+  --chart-color-5: #06B6D4; /* Sky Cyan */
+  --chart-color-6: #EF4444; /* Crimson Risk */
+  --chart-grid-stroke: #F1F5F9;
+
+  /* ==========================================================================
+     2. TYPOGRAPHY TOKENS
+     ========================================================================== */
+
+  /* Font Families */
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Playfair Display', 'Merriweather', Georgia, serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+
+  /* Font Sizes */
+  --text-hero: 3.5rem;     /* 56px */
+  --text-h1: 2.15rem;      /* 34.4px */
+  --text-h2: 1.55rem;      /* 24.8px */
+  --text-h3: 1.20rem;      /* 19.2px */
+  --text-h4: 1.00rem;      /* 16px */
+  --text-body-lg: 1.00rem; /* 16px */
+  --text-body: 0.875rem;   /* 14px */
+  --text-body-sm: 0.8125rem;/* 13px */
+  --text-caption: 0.75rem; /* 12px */
+  --text-micro: 0.6875rem; /* 11px */
+
+  /* Numerical / Metric Display */
+  --text-stat-lg: 2.35rem; /* 37.6px */
+  --text-stat-md: 1.85rem; /* 29.6px */
+  --text-stat-sm: 1.35rem; /* 21.6px */
+
+  /* Font Weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-extrabold: 800;
+
+  /* Line Heights */
+  --leading-tight: 1.15;
+  --leading-snug: 1.30;
+  --leading-normal: 1.50;
+  --leading-relaxed: 1.65;
+
+  /* ==========================================================================
+     3. SPACING TOKENS (8pt grid with 4pt subdivisions)
+     ========================================================================== */
+
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.50rem;   /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1.00rem;   /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.50rem;   /* 24px */
+  --space-8: 2.00rem;   /* 32px */
+  --space-10: 2.50rem;  /* 40px */
+  --space-12: 3.00rem;  /* 48px */
+  --space-16: 4.00rem;  /* 64px */
+  --space-20: 5.00rem;  /* 80px */
+
+  /* Structural Dimensions */
+  --sidebar-width: 250px;
+  --sidebar-width-collapsed: 74px;
+  --topbar-height: 70px;
+  --role-bar-height: 38px;
+  --container-max-width: 1440px;
+  --container-landing-max: 1240px;
+
+  /* ==========================================================================
+     4. ELEVATIONS & SHADOWS
+     ========================================================================== */
+
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px 0 rgba(16, 24, 40, 0.04);
+  --shadow-sm: 0 1px 3px 0 rgba(16, 24, 40, 0.06), 0 1px 2px -1px rgba(16, 24, 40, 0.04);
+  --shadow-card: 0 2px 8px 0 rgba(15, 23, 42, 0.04), 0 1px 3px 0 rgba(15, 23, 42, 0.02);
+  --shadow-card-hover: 0 12px 24px -4px rgba(15, 23, 42, 0.08), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
+  --shadow-stith-card: 0 2px 10px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(15, 23, 42, 0.05);
+  --shadow-stith-hover: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  --shadow-dropdown: 0 10px 20px -3px rgba(15, 23, 42, 0.12), 0 4px 6px -4px rgba(15, 23, 42, 0.06);
+  --shadow-modal: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  --shadow-glow-blue: 0 0 24px rgba(30, 107, 255, 0.40);
+  --shadow-glow-cyan: 0 0 24px rgba(6, 182, 212, 0.40);
+
+  /* ==========================================================================
+     5. BORDER RADII
+     ========================================================================== */
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ==========================================================================
+     6. TRANSITIONS & TIMING
+     ========================================================================== */
+
+  --ease-standard: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0.0, 1, 1);
+  --transition-fast: 150ms var(--ease-standard);
+  --transition-normal: 220ms var(--ease-standard);
+  --transition-smooth: 350ms var(--ease-out);
+
+  /* Focus Ring */
+  --focus-ring: 0 0 0 3px rgba(30, 107, 255, 0.25);
+  --focus-ring-danger: 0 0 0 3px rgba(239, 68, 68, 0.25);
+
+  /* Z-Index Hierarchy */
+  --z-base: 1;
+  --z-card-hover: 5;
+  --z-sticky: 10;
+  --z-header: 20;
+  --z-sidebar: 30;
+  --z-role-bar: 40;
+  --z-drawer: 50;
+  --z-modal-backdrop: 90;
+  --z-modal: 100;
+  --z-toast: 110;
+  --z-tooltip: 120;
+}
