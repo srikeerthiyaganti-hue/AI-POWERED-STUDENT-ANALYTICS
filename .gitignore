@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+Frontend/node_modules/
+
+# Production builds
+dist/
+Frontend/dist/
+dist-ssr/
+Frontend/dist-ssr/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories & files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Python & Databases
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+*.sqlite3
+*.sqlite
+
+# Backup and temp logs
+Frontend - Copy/
+chrome_console.log
+scratch/
+.tempmediaStorage/
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
