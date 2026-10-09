@@ -1,0 +1,695 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "student_id": "REG1001",
+      "name": "Diya Banerjee",
+      "department": "CSE",
+      "cgpa": 7.92,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1002",
+      "name": "Kavya Martin",
+      "department": "AIML",
+      "cgpa": 6.8,
+      "semester": 2,
+      "risk_score": 50,
+      "risk_level": "MEDIUM",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1003",
+      "name": "Ishaan Gupta",
+      "department": "BBA",
+      "cgpa": 7.63,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1004",
+      "name": "Daniel Davis",
+      "department": "CSCS",
+      "cgpa": 8.42,
+      "semester": 4,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1005",
+      "name": "William Verma",
+      "department": "MECH",
+      "cgpa": 9.56,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1006",
+      "name": "Alexander Banerjee",
+      "department": "CIVIL",
+      "cgpa": 7.84,
+      "semester": 2,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1007",
+      "name": "Charlotte Kumar",
+      "department": "CSE",
+      "cgpa": 7.24,
+      "semester": 3,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1008",
+      "name": "Ishaan Banerjee",
+      "department": "AIML",
+      "cgpa": 4.91,
+      "semester": 4,
+      "risk_score": 50,
+      "risk_level": "MEDIUM",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1009",
+      "name": "Varun Khan",
+      "department": "BBA",
+      "cgpa": 7.9,
+      "semester": 1,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1010",
+      "name": "Tanya Thomas",
+      "department": "CSCS",
+      "cgpa": 6.49,
+      "semester": 2,
+      "risk_score": 50,
+      "risk_level": "MEDIUM",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1011",
+      "name": "Ishaan Walker",
+      "department": "MECH",
+      "cgpa": 9.01,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1012",
+      "name": "William Mukherjee",
+      "department": "CIVIL",
+      "cgpa": 8.76,
+      "semester": 4,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1013",
+      "name": "Aarav Johnson",
+      "department": "CSE",
+      "cgpa": 8.51,
+      "semester": 1,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1014",
+      "name": "Rahul Reddy",
+      "department": "AIML",
+      "cgpa": 6.7,
+      "semester": 2,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1015",
+      "name": "Kavya Iyer",
+      "department": "BBA",
+      "cgpa": 8.14,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1016",
+      "name": "Hannah Reddy",
+      "department": "CSCS",
+      "cgpa": 8.81,
+      "semester": 4,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1017",
+      "name": "Noah Deshmukh",
+      "department": "MECH",
+      "cgpa": 9.24,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1018",
+      "name": "Nathan Rodriguez",
+      "department": "CIVIL",
+      "cgpa": 9.95,
+      "semester": 2,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1019",
+      "name": "Zara Miller",
+      "department": "CSE",
+      "cgpa": 9.95,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1020",
+      "name": "Alexander Williams",
+      "department": "AIML",
+      "cgpa": 6.65,
+      "semester": 4,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1021",
+      "name": "Tanya Garcia",
+      "department": "BBA",
+      "cgpa": 6.76,
+      "semester": 1,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1022",
+      "name": "Noah Davis",
+      "department": "CSCS",
+      "cgpa": 7.06,
+      "semester": 2,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1023",
+      "name": "Varun Nair",
+      "department": "MECH",
+      "cgpa": 8.6,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1024",
+      "name": "Zoe Sharma",
+      "department": "CIVIL",
+      "cgpa": 8.48,
+      "semester": 4,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1025",
+      "name": "Vikram Khan",
+      "department": "CSE",
+      "cgpa": 9.79,
+      "semester": 1,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1026",
+      "name": "Benjamin Brown",
+      "department": "AIML",
+      "cgpa": 7.62,
+      "semester": 2,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1027",
+      "name": "Ishaan Nair",
+      "department": "BBA",
+      "cgpa": 7.85,
+      "semester": 3,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1028",
+      "name": "Charlotte Lee",
+      "department": "CSCS",
+      "cgpa": 8.61,
+      "semester": 4,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1029",
+      "name": "Daniel Smith",
+      "department": "MECH",
+      "cgpa": 7.39,
+      "semester": 1,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1030",
+      "name": "Kavya Williams",
+      "department": "CIVIL",
+      "cgpa": 7.62,
+      "semester": 2,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1031",
+      "name": "Neha Johnson",
+      "department": "CSE",
+      "cgpa": 7.57,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1032",
+      "name": "Neha Rodriguez",
+      "department": "AIML",
+      "cgpa": 5.79,
+      "semester": 4,
+      "risk_score": 50,
+      "risk_level": "MEDIUM",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1033",
+      "name": "Hannah Mukherjee",
+      "department": "BBA",
+      "cgpa": 9.14,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1034",
+      "name": "Benjamin Johnson",
+      "department": "CSCS",
+      "cgpa": 7.61,
+      "semester": 2,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1035",
+      "name": "Tanya Martin",
+      "department": "MECH",
+      "cgpa": 8.94,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1036",
+      "name": "Fatima Williams",
+      "department": "CIVIL",
+      "cgpa": 8.95,
+      "semester": 4,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1037",
+      "name": "Noah Mukherjee",
+      "department": "CSE",
+      "cgpa": 8.42,
+      "semester": 1,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1038",
+      "name": "Varun Lee",
+      "department": "AIML",
+      "cgpa": 7.58,
+      "semester": 2,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1039",
+      "name": "Maya Chen",
+      "department": "BBA",
+      "cgpa": 6.32,
+      "semester": 3,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1040",
+      "name": "Ishaan Brown",
+      "department": "CSCS",
+      "cgpa": 7.54,
+      "semester": 4,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1041",
+      "name": "Maya Taylor",
+      "department": "MECH",
+      "cgpa": 9.95,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1042",
+      "name": "Kavya Choudhury",
+      "department": "CIVIL",
+      "cgpa": 7.24,
+      "semester": 2,
+      "risk_score": 50,
+      "risk_level": "MEDIUM",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1043",
+      "name": "Hannah Rao",
+      "department": "CSE",
+      "cgpa": 7.86,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1044",
+      "name": "Hannah Zhang",
+      "department": "AIML",
+      "cgpa": 6.12,
+      "semester": 4,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1045",
+      "name": "Olivia Williams",
+      "department": "BBA",
+      "cgpa": 7.54,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1046",
+      "name": "Ethan Miller",
+      "department": "CSCS",
+      "cgpa": 6.72,
+      "semester": 2,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1047",
+      "name": "Elena Martin",
+      "department": "MECH",
+      "cgpa": 7.3,
+      "semester": 3,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1048",
+      "name": "Varun Miller",
+      "department": "CIVIL",
+      "cgpa": 6.86,
+      "semester": 4,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1049",
+      "name": "William Taylor",
+      "department": "CSE",
+      "cgpa": 8.77,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1050",
+      "name": "Neha Lee",
+      "department": "AIML",
+      "cgpa": 7.09,
+      "semester": 2,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1051",
+      "name": "Elena Zhang",
+      "department": "BBA",
+      "cgpa": 7.81,
+      "semester": 3,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1052",
+      "name": "Charlotte Chen",
+      "department": "CSCS",
+      "cgpa": 8.2,
+      "semester": 4,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1053",
+      "name": "Diya Iyer",
+      "department": "MECH",
+      "cgpa": 9.19,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1054",
+      "name": "Fatima Verma",
+      "department": "CIVIL",
+      "cgpa": 7.98,
+      "semester": 2,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1055",
+      "name": "Zara Choudhury",
+      "department": "CSE",
+      "cgpa": 7.69,
+      "semester": 3,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1056",
+      "name": "Noah Smith",
+      "department": "AIML",
+      "cgpa": 7.73,
+      "semester": 4,
+      "risk_score": 30,
+      "risk_level": "LOW",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1057",
+      "name": "Zara Williams",
+      "department": "BBA",
+      "cgpa": 7.7,
+      "semester": 1,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1058",
+      "name": "Sophia Miller",
+      "department": "CSCS",
+      "cgpa": 7.43,
+      "semester": 2,
+      "risk_score": 50,
+      "risk_level": "MEDIUM",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "REG1059",
+      "name": "Varun Anderson",
+      "department": "MECH",
+      "cgpa": 8.05,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "REG1060",
+      "name": "Diya Mukherjee",
+      "department": "CIVIL",
+      "cgpa": 7.91,
+      "semester": 4,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "241FA04424",
+      "name": "Student (241FA04424)",
+      "department": "CSE",
+      "cgpa": 8.65,
+      "semester": 2,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "241FA04E95",
+      "name": "Student (241FA04E95)",
+      "department": "CSE",
+      "cgpa": 8.65,
+      "semester": 2,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "231FA04A86",
+      "name": "Student (231FA04A86)",
+      "department": "CSE",
+      "cgpa": 8.65,
+      "semester": 4,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "231FA04128",
+      "name": "Student (231FA04128)",
+      "department": "IT",
+      "cgpa": 8.65,
+      "semester": 4,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "251FA04E12",
+      "name": "ALLURI VISHNUVARDHAN",
+      "department": "CSE",
+      "cgpa": 6.85,
+      "semester": 3,
+      "risk_score": 20,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "251FA04E16",
+      "name": "ANALA SAKETHRAM",
+      "department": "CSE",
+      "cgpa": 0.0,
+      "semester": 3,
+      "risk_score": 50,
+      "risk_level": "MEDIUM",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "231FA04424",
+      "name": "GAUTHAMI JUNIOR COLLEGE",
+      "department": "CSE",
+      "cgpa": 0.0,
+      "semester": 4,
+      "risk_score": 80,
+      "risk_level": "HIGH",
+      "missing_prerequisites": true
+    },
+    {
+      "student_id": "251FA04608",
+      "name": "KOTHA SAI SADHAN",
+      "department": "CSE",
+      "cgpa": 8.14,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    },
+    {
+      "student_id": "251FA25005",
+      "name": "BANTU DEVENDRA VARA  PRASAD",
+      "department": "CSE",
+      "cgpa": 8.38,
+      "semester": 3,
+      "risk_score": 0,
+      "risk_level": "LOW",
+      "missing_prerequisites": false
+    }
+  ]
+}
