@@ -1,0 +1,99 @@
+{
+  "version": "v1.0",
+  "training_records": 50000,
+  "feature_columns": [
+    "cgpa",
+    "backlogs",
+    "overall_attendance_pct",
+    "lms_assignment_completion_pct",
+    "lms_logins_per_week",
+    "aptitude_score",
+    "coding_skills",
+    "dsa_score",
+    "system_design",
+    "internships",
+    "projects_count",
+    "certifications",
+    "hackathons",
+    "open_source",
+    "communication_skills",
+    "ml_knowledge",
+    "faculty_feedback_rating"
+  ],
+  "academic_leaderboard": [
+    {
+      "Model": "Random Forest",
+      "Accuracy": 0.9095,
+      "Precision": 0.7735,
+      "Recall": 0.9599,
+      "F1 Score": 0.8566,
+      "ROC-AUC": 0.9504,
+      "Train Time (s)": 5.7
+    },
+    {
+      "Model": "XGBoost",
+      "Accuracy": 0.9095,
+      "Precision": 0.7735,
+      "Recall": 0.9599,
+      "F1 Score": 0.8566,
+      "ROC-AUC": 0.9502,
+      "Train Time (s)": 3.34
+    },
+    {
+      "Model": "LightGBM",
+      "Accuracy": 0.9097,
+      "Precision": 0.7736,
+      "Recall": 0.9606,
+      "F1 Score": 0.857,
+      "ROC-AUC": 0.9497,
+      "Train Time (s)": 0.71
+    },
+    {
+      "Model": "Logistic Regression",
+      "Accuracy": 0.8494,
+      "Precision": 0.8033,
+      "Recall": 0.6163,
+      "F1 Score": 0.6975,
+      "ROC-AUC": 0.9458,
+      "Train Time (s)": 0.15
+    }
+  ],
+  "placement_leaderboard": [
+    {
+      "Model": "Logistic Regression",
+      "Accuracy": 0.693,
+      "Precision": 0.5649,
+      "Recall": 0.1332,
+      "F1 Score": 0.2156,
+      "ROC-AUC": 0.6572,
+      "Train Time (s)": 0.04
+    },
+    {
+      "Model": "XGBoost",
+      "Accuracy": 0.6901,
+      "Precision": 0.5642,
+      "Recall": 0.0944,
+      "F1 Score": 0.1618,
+      "ROC-AUC": 0.6507,
+      "Train Time (s)": 0.47
+    },
+    {
+      "Model": "LightGBM",
+      "Accuracy": 0.6909,
+      "Precision": 0.5554,
+      "Recall": 0.1203,
+      "F1 Score": 0.1978,
+      "ROC-AUC": 0.6498,
+      "Train Time (s)": 0.81
+    },
+    {
+      "Model": "Random Forest",
+      "Accuracy": 0.6876,
+      "Precision": 0.59,
+      "Recall": 0.0445,
+      "F1 Score": 0.0828,
+      "ROC-AUC": 0.6448,
+      "Train Time (s)": 3.86
+    }
+  ]
+}
