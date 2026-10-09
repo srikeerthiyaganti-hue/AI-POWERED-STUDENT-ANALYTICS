@@ -1,0 +1,35 @@
+[
+  {
+    "registrationNumber": "241FA04001",
+    "name": "Aarav Sharma",
+    "branch": "Computer Science and Engineering",
+    "branchCode": "04",
+    "semester": 2,
+    "gpa": 8.75,
+    "attendanceRate": 92.5,
+    "riskLevel": "Low",
+    "riskScore": 0
+  },
+  {
+    "registrationNumber": "241FA18001",
+    "name": "Aditi Verma",
+    "branch": "Artificial Intelligence and Machine Learning",
+    "branchCode": "18",
+    "semester": 2,
+    "gpa": 7.40,
+    "attendanceRate": 78.0,
+    "riskLevel": "Medium",
+    "riskScore": 35
+  },
+  {
+    "registrationNumber": "241FA19001",
+    "name": "Akash Patel",
+    "branch": "Cybersecurity",
+    "branchCode": "19",
+    "semester": 2,
+    "gpa": 5.80,
+    "attendanceRate": 68.0,
+    "riskLevel": "High",
+    "riskScore": 85
+  }
+]

@@ -1,0 +1,19 @@
+# Dependency directories
+node_modules/
+
+# Environment variable files containing secrets
+.env
+.env.local
+.env.*.local
+*.env
+!*.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS and IDE files
+.DS_Store
+.idea/
+.vscode/
