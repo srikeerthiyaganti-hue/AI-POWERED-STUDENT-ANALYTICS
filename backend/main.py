@@ -1,4 +1,4 @@
-```python
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -30,4 +30,4 @@ def health_check():
         "status": "healthy",
         "service": "AI Student Analytics API"
     }
-```
+uvicorn.run("backend.main:app", host=host, port=port, reload=True)
