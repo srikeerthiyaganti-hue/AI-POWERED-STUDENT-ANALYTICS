@@ -92,8 +92,9 @@ export default function PlacementDashboard() {
             setSummaryData(sumRes.value);
             setIsLiveApi(true);
           }
-          if (studRes.status === 'fulfilled' && Array.isArray(studRes.value) && studRes.value.length > 0) {
-            setCandidates(studRes.value);
+          if (studRes.status === 'fulfilled') {
+            const list = Array.isArray(studRes.value) ? studRes.value : (studRes.value?.items || []);
+            setCandidates(list.length > 0 ? list : MOCK_STUDENTS);
           } else {
             setCandidates(MOCK_STUDENTS);
           }

@@ -55,13 +55,11 @@ async def get_student_dashboard(
     student_row = cursor.fetchone()
 
     if not student_row:
-        # Fallback to first student if specific roll number is not found
-        cursor.execute("SELECT * FROM students LIMIT 1")
-        student_row = cursor.fetchone()
-
-    if not student_row:
         conn.close()
-        raise HTTPException(status_code=404, detail="Student telemetry record not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Student telemetry record with roll number '{target_roll}' not found."
+        )
 
     # Fetch assigned mentoring interventions
     cursor.execute("""
@@ -73,6 +71,18 @@ async def get_student_dashboard(
     interventions = [dict(r) for r in cursor.fetchall()]
 
     conn.close()
+
+    # Dynamic explainable placement readiness calculation
+    plac_score = (
+        (min(10.0, student_row["dsa_score"]) / 10.0 * 30.0) +
+        (min(10.0, student_row["coding_skills"]) / 10.0 * 25.0) +
+        (student_row["aptitude_score"] / 100.0 * 25.0) +
+        (student_row["cgpa"] / 10.0 * 20.0)
+    )
+    placement_readiness_pct = round(max(5.0, min(99.0, plac_score)), 1)
+
+    # Dynamic engagement metric combining attendance and LMS assignment velocity
+    engagement_pct = round(float((student_row["overall_attendance_pct"] * 0.45) + (student_row["lms_assignment_completion_pct"] * 0.55)), 1)
 
     # Format student telemetry
     return {
@@ -88,7 +98,7 @@ async def get_student_dashboard(
         "dsa_score": student_row["dsa_score"],
         "aptitude_score": student_row["aptitude_score"],
         "success_score": student_row["success_score"],
-        "placement_readiness_pct": 78.6,
+        "placement_readiness_pct": placement_readiness_pct,
         "score_band": "EXCELLENT" if student_row["success_score"] >= 80 else ("GOOD" if student_row["success_score"] >= 65 else "NEEDS_SUPPORT"),
         "readiness_tier": "Tier-1 Ready" if student_row["cgpa"] >= 8.0 and student_row["dsa_score"] >= 8.0 else "Tier-2 In Training",
         "academic_risk": student_row["academic_risk_band"],
@@ -97,11 +107,11 @@ async def get_student_dashboard(
         "placement_risk_prob": student_row["placement_risk_prob"],
         "components": {
             "academic": round(float((student_row["cgpa"] / 10.0) * 100), 1),
-            "placement": 78.6,
+            "placement": placement_readiness_pct,
             "attendance": student_row["overall_attendance_pct"],
             "lms": student_row["lms_assignment_completion_pct"],
             "skills": round(float(student_row["coding_skills"] * 10), 1),
-            "engagement": 88.0
+            "engagement": engagement_pct
         },
         "mentoring_tasks": interventions
     }

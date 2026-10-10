@@ -23,7 +23,6 @@ async function request(endpoint, options = {}) {
     const response = await fetch(url, { ...options, headers });
     
     if (response.status === 401) {
-      // Clear token on 401 Unauthorized
       sessionStorage.removeItem('codebuffet_access_token');
     }
 
@@ -36,7 +35,6 @@ async function request(endpoint, options = {}) {
 
     return data;
   } catch (error) {
-    // If backend is offline/unreachable, propagate meaningful error
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error(`Unable to reach CODEBUFFET API at ${API_BASE}. Ensure backend is running.`);
     }
@@ -75,17 +73,63 @@ export const api = {
 
   // Institution Endpoints
   getInstitutionSummary: () => request('/api/institution/summary'),
+  getCohortAnalytics: () => request('/api/institution/analytics/cohort'),
   getInstitutionDepartments: () => request('/api/institution/departments'),
   getInstitutionTrends: (range) => request(`/api/institution/trends?range_filter=${encodeURIComponent(range || 'Last 6 Months')}`),
-  getInstitutionStudents: (search = '', riskBand = '', department = '', mentor = '') => {
+  
+  getInstitutionStudents: (options = {}) => {
+    // Supports both legacy argument list or options object
+    let paramsObj = {};
+    if (typeof options === 'string') {
+      paramsObj = { search: options };
+    } else {
+      paramsObj = options || {};
+    }
+
     const params = new URLSearchParams();
-    if (search) params.append('search', search);
-    if (riskBand) params.append('risk_band', riskBand);
-    if (department) params.append('department', department);
-    if (mentor) params.append('mentor', mentor);
+    if (paramsObj.search) params.append('search', paramsObj.search);
+    if (paramsObj.riskBand) params.append('risk_band', paramsObj.riskBand);
+    if (paramsObj.academicRisk) params.append('academic_risk', paramsObj.academicRisk);
+    if (paramsObj.placementRisk) params.append('placement_risk', paramsObj.placementRisk);
+    if (paramsObj.department) params.append('department', paramsObj.department);
+    if (paramsObj.mentor) params.append('mentor', paramsObj.mentor);
+    if (paramsObj.recordType) params.append('record_type', paramsObj.recordType);
+    if (paramsObj.semester) params.append('semester', paramsObj.semester);
+    if (paramsObj.year) params.append('year', paramsObj.year);
+    if (paramsObj.attendanceRange) params.append('attendance_range', paramsObj.attendanceRange);
+    if (paramsObj.minCgpa !== undefined && paramsObj.minCgpa !== '') params.append('min_cgpa', paramsObj.minCgpa);
+    if (paramsObj.maxCgpa !== undefined && paramsObj.maxCgpa !== '') params.append('max_cgpa', paramsObj.maxCgpa);
+    if (paramsObj.sortBy) params.append('sort_by', paramsObj.sortBy);
+    if (paramsObj.sortOrder) params.append('sort_order', paramsObj.sortOrder);
+    if (paramsObj.page) params.append('page', paramsObj.page);
+    if (paramsObj.pageSize) params.append('page_size', paramsObj.pageSize);
+    if (paramsObj.limit) params.append('limit', paramsObj.limit);
+
     const qs = params.toString() ? `?${params.toString()}` : '';
     return request(`/api/institution/students${qs}`);
   },
+
+  getMentors: () => request('/api/institution/mentors'),
+
+  simulateCohort: (simulationParams) =>
+    request('/api/institution/simulate-cohort', {
+      method: 'POST',
+      body: JSON.stringify(simulationParams),
+    }),
+
+  getModelStatus: () => request('/api/institution/model-status'),
+
+  getExportStudentsUrl: (options = {}) => {
+    const params = new URLSearchParams();
+    if (options.search) params.append('search', options.search);
+    if (options.riskBand) params.append('risk_band', options.riskBand);
+    if (options.department) params.append('department', options.department);
+    if (options.mentor) params.append('mentor', options.mentor);
+    if (options.recordType) params.append('record_type', options.recordType);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return `${API_BASE}/api/institution/students/export${qs}`;
+  },
+
   getInterventions: (mentor = '', category = '') => {
     const params = new URLSearchParams();
     if (mentor) params.append('mentor', mentor);
@@ -93,14 +137,28 @@ export const api = {
     const qs = params.toString() ? `?${params.toString()}` : '';
     return request(`/api/institution/interventions${qs}`);
   },
+
   createIntervention: (data) =>
     request('/api/institution/interventions', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
   toggleInstitutionIntervention: (taskId) =>
     request(`/api/institution/interventions/${taskId}/toggle`, {
       method: 'POST',
+    }),
+
+  createStudent: (studentData) =>
+    request('/api/institution/students', {
+      method: 'POST',
+      body: JSON.stringify(studentData),
+    }),
+
+  assignMentor: (rollNo, mentorName) =>
+    request('/api/institution/students/assign-mentor', {
+      method: 'POST',
+      body: JSON.stringify({ roll_no: rollNo, mentor_name: mentorName }),
     }),
 
   // Student Endpoints

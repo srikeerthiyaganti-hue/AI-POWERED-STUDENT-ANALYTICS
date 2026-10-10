@@ -13,8 +13,18 @@ import jwt
 from fastapi import HTTPException, Security, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-# Configuration from Environment Variables with secure defaults for development
-SECRET_KEY = os.getenv("SECRET_KEY", "cb_sec_7a8f9c0e2b4d6183a95d12ef4c8037ab")
+from dotenv import load_dotenv
+
+# Resolve repository root and load .env
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+# Configuration from Environment Variables
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY or SECRET_KEY == "change_this_to_a_secure_random_hex_string_in_production_min_32_chars":
+    # Fallback to runtime ephemeral cryptographic key to prevent static key vulnerability
+    SECRET_KEY = secrets.token_hex(32)
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440")) # 24 hours
 

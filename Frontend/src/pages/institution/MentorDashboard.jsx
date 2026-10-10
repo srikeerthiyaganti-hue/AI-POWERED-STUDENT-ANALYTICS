@@ -2,46 +2,23 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Users,
-  Award,
   AlertTriangle,
-  Briefcase,
   GraduationCap,
-  Sparkles,
-  TrendingUp,
   Search,
   Bell,
   Sun,
   Moon,
-  ChevronDown,
   LogOut,
-  ArrowRight,
   Home,
-  BarChart2,
-  ShieldAlert,
-  Star,
-  FileText,
   Target,
-  Settings,
-  X,
   Plus,
-  CheckCircle2,
-  Clock,
-  BookOpen,
   Eye,
-  Sliders,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
 } from 'recharts';
 import BrandLogo from '../../components/common/BrandLogo';
 import { useAuth } from '../../context/AuthContext';
@@ -70,6 +47,7 @@ export default function MentorDashboard() {
   const [interventions, setInterventions] = useState([]);
   const [isLiveApi, setIsLiveApi] = useState(false);
   const [submittingTask, setSubmittingTask] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // New Task Form State
   const [newTaskRoll, setNewTaskRoll] = useState('STU-2024-001');
@@ -78,27 +56,65 @@ export default function MentorDashboard() {
   const [newTaskCategory, setNewTaskCategory] = useState('ATTENDANCE');
   const [newTaskDueDate, setNewTaskDueDate] = useState('Nov 10, 2026');
 
-  // Load CSE Mentees & Interventions
+  // Load Mentees & Interventions
   useEffect(() => {
     let isMounted = true;
     async function fetchMentorData() {
+      if (isMounted) setLoading(true);
       try {
+        const mentorName = currentUser?.name || currentUser?.full_name || 'Prof. Rajesh Kumar';
+        const cleanName = mentorName.replace(/^Prof\.\s*/i, '').replace(/^Dr\.\s*/i, '').trim();
         const [studRes, intervRes] = await Promise.allSettled([
-          api.getInstitutionStudents('', '', 'Computer Science & Engineering'),
-          api.getInterventions('Prof. Rajesh Kumar'),
+          api.getInstitutionStudents({ mentor: cleanName }),
+          api.getInterventions(cleanName),
         ]);
 
         if (isMounted) {
-          if (studRes.status === 'fulfilled' && Array.isArray(studRes.value) && studRes.value.length > 0) {
-            setMentees(studRes.value);
-            setIsLiveApi(true);
-          } else {
-            // Filter mock CSE students
-            setMentees(MOCK_STUDENTS.filter((s) => s.department === 'CSE'));
+          let menteesList = [];
+          if (studRes.status === 'fulfilled' && (Array.isArray(studRes.value) || studRes.value?.items)) {
+            menteesList = Array.isArray(studRes.value) ? studRes.value : (studRes.value.items || []);
           }
 
+          // If cleanName search was empty, retry with full mentorName
+          if (menteesList.length === 0) {
+            try {
+              const fullRes = await api.getInstitutionStudents({ mentor: mentorName });
+              menteesList = Array.isArray(fullRes) ? fullRes : (fullRes?.items || []);
+            } catch {}
+          }
+
+          // Fallback to verified profile cohort if still empty
+          if (menteesList.length === 0) {
+            try {
+              const verRes = await api.getInstitutionStudents({ recordType: 'verified_profile' });
+              menteesList = Array.isArray(verRes) ? verRes : (verRes?.items || []);
+            } catch {}
+          }
+
+          if (menteesList.length > 0) {
+            setMentees(menteesList);
+            setIsLiveApi(true);
+            setNewTaskRoll(menteesList[0].id);
+            setNewTaskName(menteesList[0].name);
+          } else {
+            setMentees(MOCK_STUDENTS.slice(0, 3));
+          }
+
+          // Interventions
+          let intervList = [];
           if (intervRes.status === 'fulfilled' && Array.isArray(intervRes.value) && intervRes.value.length > 0) {
-            setInterventions(intervRes.value);
+            intervList = intervRes.value;
+          } else {
+            try {
+              const retryInterv = await api.getInterventions(mentorName);
+              if (Array.isArray(retryInterv) && retryInterv.length > 0) {
+                intervList = retryInterv;
+              }
+            } catch {}
+          }
+
+          if (intervList.length > 0) {
+            setInterventions(intervList);
           } else {
             setInterventions([
               {
@@ -128,11 +144,16 @@ export default function MentorDashboard() {
         }
       } catch (err) {
         console.warn('Backend unavailable, using fallback data:', err);
+        if (isMounted) {
+          setMentees((prev) => (prev.length > 0 ? prev : MOCK_STUDENTS.slice(0, 3)));
+        }
+      } finally {
+        if (isMounted) setLoading(false);
       }
     }
     fetchMentorData();
     return () => { isMounted = false; };
-  }, []);
+  }, [currentUser]);
 
   const handleToggleIntervention = async (id) => {
     // Optimistic UI update
@@ -355,40 +376,28 @@ export default function MentorDashboard() {
             </div>
 
             <nav style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {[
-                { name: 'Mentoring Cockpit', icon: Home, active: true },
-                { name: 'Assigned Mentees', icon: Users, active: false },
-                { name: 'Remedial Actions', icon: Target, active: false },
-                { name: 'Academic Alerts', icon: ShieldAlert, active: false },
-                { name: 'Course Progress', icon: BookOpen, active: false },
-                { name: 'Reports & Logs', icon: FileText, active: false },
-                { name: 'Settings', icon: Settings, active: false },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.name}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '9px 12px',
-                      borderRadius: '10px',
-                      backgroundColor: item.active ? '#1E6BFF' : 'transparent',
-                      color: item.active ? '#FFFFFF' : isDarkMode ? '#94A3B8' : '#64748B',
-                      fontSize: '0.88rem',
-                      fontWeight: item.active ? 600 : 500,
-                      border: 'none',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      width: '100%',
-                    }}
-                  >
-                    <Icon size={18} />
-                    <span>{item.name}</span>
-                  </button>
-                );
-              })}
+              <button
+                type="button"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#1E6BFF',
+                  color: '#FFFFFF',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
+                  boxShadow: '0 2px 8px rgba(30, 107, 255, 0.25)',
+                }}
+              >
+                <Home size={18} />
+                <span>Mentoring Cockpit</span>
+              </button>
             </nav>
           </div>
 
@@ -406,6 +415,9 @@ export default function MentorDashboard() {
             </div>
             <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
               Dept: Computer Science & Engineering
+            </div>
+            <div style={{ fontSize: '0.70rem', color: '#059669', fontWeight: 700, marginTop: '6px' }}>
+              ● {mentees.length} Assigned Mentees
             </div>
           </div>
         </aside>
@@ -638,7 +650,9 @@ export default function MentorDashboard() {
                     <Users size={22} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>{mentees.length}</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>
+                      {loading ? '...' : mentees.length}
+                    </div>
                     <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>Assigned CSE Mentees</div>
                     <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700, marginTop: '2px' }}>
                       3rd & 4th Year Cohort
@@ -749,7 +763,9 @@ export default function MentorDashboard() {
                     <Target size={22} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>{interventions.length}</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>
+                      {loading ? '...' : interventions.length}
+                    </div>
                     <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>Total Interventions</div>
                     <div style={{ fontSize: '0.72rem', color: '#8B5CF6', fontWeight: 700, marginTop: '2px' }}>
                       {openInterventionsCount} Pending Completion
@@ -798,7 +814,16 @@ export default function MentorDashboard() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {interventions.map((task) => {
+                  {loading ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748B', fontSize: '0.84rem' }}>
+                      Loading mentoring interventions...
+                    </div>
+                  ) : interventions.length === 0 ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748B', fontSize: '0.84rem' }}>
+                      No active interventions. Click "+ New Task" above to assign one.
+                    </div>
+                  ) : (
+                    interventions.map((task) => {
                     const isDone = task.status === 'COMPLETED';
                     return (
                       <div
@@ -858,7 +883,7 @@ export default function MentorDashboard() {
                         </span>
                       </div>
                     );
-                  })}
+                  }))}
                 </div>
               </div>
 
@@ -962,76 +987,90 @@ export default function MentorDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredMentees.map((s) => (
-                      <tr
-                        key={s.id}
-                        style={{
-                          borderBottom: `1px solid ${isDarkMode ? '#334155' : '#F8FAFC'}`,
-                          backgroundColor: selectedStudent?.id === s.id ? (isDarkMode ? '#0F172A' : '#EFF6FF') : 'transparent',
-                        }}
-                      >
-                        <td style={{ padding: '12px 8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <img src={s.avatar} alt={s.name} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
-                          <div>
-                            <div style={{ fontWeight: 700 }}>{s.name}</div>
-                            <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{s.id}</div>
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>{s.year || '3rd Year'}</td>
-                        <td style={{ padding: '12px 8px', fontWeight: 700 }}>{s.cgpa}</td>
-                        <td style={{ padding: '12px 8px', color: s.attendance < 75 ? '#EF4444' : '#10B981', fontWeight: 600 }}>
-                          {s.attendance}%
-                        </td>
-                        <td style={{ padding: '12px 8px', color: s.backlogs > 0 ? '#EF4444' : '#10B981', fontWeight: 700 }}>
-                          {s.backlogs ?? 0}
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <span
-                            style={{
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontWeight: 700,
-                              fontSize: '0.76rem',
-                              backgroundColor: s.successScore >= 80 ? '#ECFDF5' : s.successScore >= 65 ? '#EFF6FF' : '#FEF2F2',
-                              color: s.successScore >= 80 ? '#059669' : s.successScore >= 65 ? '#1E6BFF' : '#DC2626',
-                            }}
-                          >
-                            {s.successScore}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 8px' }}>
-                          <span
-                            style={{
-                              padding: '3px 8px',
-                              borderRadius: '9999px',
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              backgroundColor: s.academicRisk === 'HIGH' ? '#FEF2F2' : s.academicRisk === 'MEDIUM' ? '#FFFBEB' : '#ECFDF5',
-                              color: s.academicRisk === 'HIGH' ? '#DC2626' : s.academicRisk === 'MEDIUM' ? '#D97706' : '#059669',
-                            }}
-                          >
-                            {s.academicRisk}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                          <button
-                            onClick={() => setSelectedStudent(s)}
-                            style={{
-                              padding: '5px 10px',
-                              borderRadius: '6px',
-                              backgroundColor: '#1E6BFF',
-                              color: '#FFFFFF',
-                              border: 'none',
-                              fontSize: '0.76rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Inspect Mentee
-                          </button>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={8} style={{ padding: '24px 8px', textAlign: 'center', color: '#64748B' }}>
+                          Loading assigned mentees...
                         </td>
                       </tr>
-                    ))}
+                    ) : filteredMentees.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} style={{ padding: '24px 8px', textAlign: 'center', color: '#64748B' }}>
+                          No mentees match your search query.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredMentees.map((s) => (
+                        <tr
+                          key={s.id}
+                          style={{
+                            borderBottom: `1px solid ${isDarkMode ? '#334155' : '#F8FAFC'}`,
+                            backgroundColor: selectedStudent?.id === s.id ? (isDarkMode ? '#0F172A' : '#EFF6FF') : 'transparent',
+                          }}
+                        >
+                          <td style={{ padding: '12px 8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <img src={s.avatar} alt={s.name} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+                            <div>
+                              <div style={{ fontWeight: 700 }}>{s.name}</div>
+                              <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{s.id}</div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>{s.year || '3rd Year'}</td>
+                          <td style={{ padding: '12px 8px', fontWeight: 700 }}>{s.cgpa}</td>
+                          <td style={{ padding: '12px 8px', color: s.attendance < 75 ? '#EF4444' : '#10B981', fontWeight: 600 }}>
+                            {s.attendance}%
+                          </td>
+                          <td style={{ padding: '12px 8px', color: s.backlogs > 0 ? '#EF4444' : '#10B981', fontWeight: 700 }}>
+                            {s.backlogs ?? 0}
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                fontSize: '0.76rem',
+                                backgroundColor: s.successScore >= 80 ? '#ECFDF5' : s.successScore >= 65 ? '#EFF6FF' : '#FEF2F2',
+                                color: s.successScore >= 80 ? '#059669' : s.successScore >= 65 ? '#1E6BFF' : '#DC2626',
+                              }}
+                            >
+                              {s.successScore}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '9999px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                backgroundColor: s.academicRisk === 'HIGH' ? '#FEF2F2' : s.academicRisk === 'MEDIUM' ? '#FFFBEB' : '#ECFDF5',
+                                color: s.academicRisk === 'HIGH' ? '#DC2626' : s.academicRisk === 'MEDIUM' ? '#D97706' : '#059669',
+                              }}
+                            >
+                              {s.academicRisk}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                            <button
+                              onClick={() => setSelectedStudent(s)}
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                backgroundColor: '#1E6BFF',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                fontSize: '0.76rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Inspect Mentee
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
