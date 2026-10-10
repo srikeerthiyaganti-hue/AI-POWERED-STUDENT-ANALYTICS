@@ -1,1 +1,10 @@
 
+
+fastapi
+uvicorn[standard]
+pandas
+numpy
+joblib
+PyJWT
+email-validator
+scikit-learn
