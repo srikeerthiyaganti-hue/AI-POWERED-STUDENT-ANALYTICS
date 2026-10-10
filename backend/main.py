@@ -1,3 +1,9 @@
+```python
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
 # CORS Middleware configured for frontend integration
 app.add_middleware(
     CORSMiddleware,
@@ -17,3 +23,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/api/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "AI Student Analytics API"
+    }
+```
