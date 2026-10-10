@@ -1,4 +1,4 @@
-```python
+
 # CORS Middleware configured for frontend integration
 app.add_middleware(
     CORSMiddleware,
