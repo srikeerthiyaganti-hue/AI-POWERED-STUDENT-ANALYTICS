@@ -43,9 +43,3 @@ Frontend - Copy/
 chrome_console.log
 scratch/
 .tempmediaStorage/
-*.db
-*.sqlite
-*.sqlite3
-.env
-.env.*
-!.env.example
