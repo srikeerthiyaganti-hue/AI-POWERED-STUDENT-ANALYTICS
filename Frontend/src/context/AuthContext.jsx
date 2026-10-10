@@ -56,12 +56,14 @@ export function AuthProvider({ children }) {
     try {
       const response = await api.login(identifier, password, role);
       if (response?.user) {
+        try {
+          sessionStorage.setItem('codebuffet_user', JSON.stringify(response.user));
+        } catch {}
         setCurrentUser(response.user);
         return { success: true, user: response.user };
       }
       throw new Error('Authentication response did not contain user record.');
     } catch (err) {
-      // If backend is offline during local demonstration, provide clear guidance
       throw err;
     } finally {
       setAuthLoading(false);
@@ -74,6 +76,48 @@ export function AuthProvider({ children }) {
    * 'admin' | 'mentor' | 'tpo' | 'student'
    */
   const loginWithDemo = async (roleKey) => {
+    const demoUsers = {
+      admin: {
+        id: 1,
+        email: 'admin@codebuffet.edu',
+        roll_no: 'EMP-ADMIN-01',
+        name: 'Dr. R. Kumar',
+        full_name: 'Dr. R. Kumar',
+        role: 'admin',
+        roleLabel: 'Institution Admin',
+        department: 'Institutional Planning & Academics',
+      },
+      mentor: {
+        id: 2,
+        email: 'rajesh.kumar@codebuffet.edu',
+        roll_no: 'FAC-CSE-104',
+        name: 'Prof. Rajesh Kumar',
+        full_name: 'Prof. Rajesh Kumar',
+        role: 'mentor',
+        roleLabel: 'Faculty Mentor',
+        department: 'Computer Science & Engineering',
+      },
+      tpo: {
+        id: 3,
+        email: 'vikram.tpo@codebuffet.edu',
+        roll_no: 'TPO-OFFICER-02',
+        name: 'Vikram Malhotra',
+        full_name: 'Vikram Malhotra',
+        role: 'tpo',
+        roleLabel: 'Placement Director',
+        department: 'Career & Corporate Relations',
+      },
+      student: {
+        id: 4,
+        email: 'aarav.sharma@codebuffet.edu',
+        roll_no: 'STU-2024-042',
+        name: 'Aarav Sharma',
+        full_name: 'Aarav Sharma',
+        role: 'student',
+        roleLabel: 'Student (B.Tech)',
+        department: 'Computer Science & Engineering',
+      },
+    };
     const credentials = {
       admin: { identifier: 'admin@codebuffet.edu', password: 'CodeBuffet@2026!', portalRole: 'admin' },
       mentor: { identifier: 'rajesh.kumar@codebuffet.edu', password: 'Mentor@2026!', portalRole: 'admin' },
@@ -81,7 +125,17 @@ export function AuthProvider({ children }) {
       student: { identifier: 'STU-2024-042', password: 'Student@2026!', portalRole: 'student' },
     };
     const cred = credentials[roleKey] || credentials.admin;
-    return await login(cred.identifier, cred.password, cred.portalRole);
+    const fallback = demoUsers[roleKey] || demoUsers.admin;
+    try {
+      return await login(cred.identifier, cred.password, cred.portalRole);
+    } catch {
+      // In offline/standalone demo mode, gracefully sign in as demo role
+      try {
+        sessionStorage.setItem('codebuffet_user', JSON.stringify(fallback));
+      } catch {}
+      setCurrentUser(fallback);
+      return { success: true, user: fallback, offline: true };
+    }
   };
 
   /**

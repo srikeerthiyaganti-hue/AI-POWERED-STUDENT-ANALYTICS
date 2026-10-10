@@ -141,10 +141,11 @@ export default function CampusDashboard() {
 
   // CSV Report Generator
   const handleGenerateReport = () => {
+    const list = cohortStudents && cohortStudents.length > 0 ? cohortStudents : MOCK_STUDENTS;
     const csvContent =
       'data:text/csv;charset=utf-8,' +
       'ID,Name,Department,Year,CGPA,Attendance,SuccessScore,AcademicRisk,PlacementRisk\n' +
-      MOCK_STUDENTS.map(
+      list.map(
         (s) =>
           `${s.id},"${s.name}",${s.department},${s.year},${s.cgpa},${s.attendance}%,${s.successScore},${s.academicRisk},${s.placementRisk}`
       ).join('\n');
@@ -226,8 +227,8 @@ export default function CampusDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.72rem', color: '#94A3B8', marginRight: '4px' }}>Switch View:</span>
           <button
-            onClick={() => {
-              loginWithDemo('mentor');
+            onClick={async () => {
+              await loginWithDemo('mentor');
               navigate('/mentor/dashboard');
             }}
             style={{
@@ -244,8 +245,8 @@ export default function CampusDashboard() {
             👨‍🏫 Mentor
           </button>
           <button
-            onClick={() => {
-              loginWithDemo('tpo');
+            onClick={async () => {
+              await loginWithDemo('tpo');
               navigate('/placement/dashboard');
             }}
             style={{
@@ -262,8 +263,8 @@ export default function CampusDashboard() {
             💼 Placement
           </button>
           <button
-            onClick={() => {
-              loginWithDemo('student');
+            onClick={async () => {
+              await loginWithDemo('student');
               navigate('/student/dashboard');
             }}
             style={{

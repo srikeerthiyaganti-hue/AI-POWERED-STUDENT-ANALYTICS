@@ -129,6 +129,13 @@ def test_institution_students_filter():
     data = response.json()
     assert len(data) > 0
     assert "Rajesh" in data[0]["name"]
+    assert "topRiskFactor" in data[0]
+    assert "scoreBand" in data[0]
+
+    # Department filter with abbreviation
+    cse_res = client.get("/api/institution/students?department=CSE", headers=_get_admin_headers())
+    assert cse_res.status_code == 200
+    assert len(cse_res.json()) > 0
 
 
 def test_student_dashboard():

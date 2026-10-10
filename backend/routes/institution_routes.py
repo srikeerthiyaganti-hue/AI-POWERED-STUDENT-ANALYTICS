@@ -162,9 +162,18 @@ async def get_students(
         params.extend([risk_band.upper(), risk_band.upper()])
 
     if department:
-        d = f"%{department.strip().lower()}%"
-        query += " AND LOWER(department) LIKE ?"
-        params.append(d)
+        dept_raw = department.strip().lower()
+        dept_abbr_map = {
+            "cse": "computer science",
+            "ece": "electronics",
+            "it": "information technology",
+            "mech": "mechanical",
+            "civil": "civil",
+            "eee": "electrical",
+        }
+        search_dept = dept_abbr_map.get(dept_raw, dept_raw)
+        query += " AND (LOWER(department) LIKE ? OR LOWER(department) LIKE ?)"
+        params.extend([f"%{dept_raw}%", f"%{search_dept}%"])
 
     if mentor:
         m = f"%{mentor.strip().lower()}%"
@@ -178,6 +187,29 @@ async def get_students(
     rows = cursor.fetchall()
     conn.close()
 
+    def _compute_risk_factor(row):
+        factors = []
+        if row["backlogs"] > 0:
+            factors.append(f"{row['backlogs']} active backlog(s)")
+        if row["overall_attendance_pct"] < 75.0:
+            factors.append(f"Attendance shortage ({row['overall_attendance_pct']}%)")
+        if row["cgpa"] < 6.5:
+            factors.append(f"Low CGPA ({row['cgpa']})")
+        if row["coding_skills"] < 5.0 or row["dsa_score"] < 5.0:
+            factors.append("DSA / Coding proficiency gap")
+        if row["lms_assignment_completion_pct"] < 65.0:
+            factors.append("Low LMS velocity")
+        if not factors:
+            return "None (On-track Tier-1 candidate)"
+        return " & ".join(factors[:2])
+
+    def _compute_score_band(score):
+        if score >= 80.0:
+            return "EXCELLENT"
+        elif score >= 65.0:
+            return "GOOD"
+        return "NEEDS_SUPPORT"
+
     return [
         {
             "id": r["roll_no"],
@@ -190,10 +222,12 @@ async def get_students(
             "backlogs": r["backlogs"],
             "lmsCompletion": r["lms_assignment_completion_pct"],
             "successScore": r["success_score"],
+            "scoreBand": _compute_score_band(r["success_score"]),
             "academicRisk": r["academic_risk_band"],
             "academicRiskProb": r["academic_risk_prob"],
             "placementRisk": r["placement_risk_band"],
             "placementRiskProb": r["placement_risk_prob"],
+            "topRiskFactor": _compute_risk_factor(r),
             "avatar": r["avatar_url"],
             "codingSkills": r["coding_skills"],
             "dsaScore": r["dsa_score"],

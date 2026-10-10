@@ -15,17 +15,26 @@ import { useAuth } from '../context/AuthContext';
 function ProtectedRoute({ children, allowedRoles }) {
   const { currentUser, isAuthenticated } = useAuth();
 
-  if (!isAuthenticated || !currentUser) {
+  const user = currentUser || (() => {
+    try {
+      const stored = sessionStorage.getItem('codebuffet_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!isAuthenticated && !user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     // Gracefully redirect user to their authorized dashboard
-    if (currentUser.role === 'student') {
+    if (user.role === 'student') {
       return <Navigate to="/student/dashboard" replace />;
-    } else if (currentUser.role === 'mentor') {
+    } else if (user.role === 'mentor') {
       return <Navigate to="/mentor/dashboard" replace />;
-    } else if (currentUser.role === 'tpo') {
+    } else if (user.role === 'tpo') {
       return <Navigate to="/placement/dashboard" replace />;
     }
     return <Navigate to="/institution/dashboard" replace />;

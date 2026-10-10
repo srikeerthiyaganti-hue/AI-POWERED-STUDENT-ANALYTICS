@@ -255,8 +255,8 @@ export default function MentorDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.72rem', color: '#94A3B8', marginRight: '4px' }}>Switch View:</span>
           <button
-            onClick={() => {
-              loginWithDemo('admin');
+            onClick={async () => {
+              await loginWithDemo('admin');
               navigate('/institution/dashboard');
             }}
             style={{
@@ -273,8 +273,8 @@ export default function MentorDashboard() {
             🏛️ Admin
           </button>
           <button
-            onClick={() => {
-              loginWithDemo('tpo');
+            onClick={async () => {
+              await loginWithDemo('tpo');
               navigate('/placement/dashboard');
             }}
             style={{
@@ -291,8 +291,8 @@ export default function MentorDashboard() {
             💼 Placement
           </button>
           <button
-            onClick={() => {
-              loginWithDemo('student');
+            onClick={async () => {
+              await loginWithDemo('student');
               navigate('/student/dashboard');
             }}
             style={{
