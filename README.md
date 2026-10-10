@@ -107,11 +107,16 @@ For evaluation and hackathon demonstrations, the following accounts are initiali
 - `POST /api/auth/login` — PBKDF2 hash verification and signed JWT token issuance.
 - `POST /api/auth/logout` — Session termination acknowledgment.
 - `GET  /api/auth/me` — Bearer-token validated user profile.
-- `GET  /api/institution/summary` — Aggregate dataset metrics across 50,000 students.
+- `GET  /api/institution/summary` — Distinguishes verified SQLite student roster from 50,000 cohort benchmark.
+- `GET  /api/institution/analytics/cohort` — Macro distributions, branch stats, and CGPA curves from 50,000 Kaggle records.
 - `GET  /api/institution/departments` — Department-wise success and placement benchmarks.
-- `GET  /api/institution/students` — Paginated and searchable student records with predicted risk probabilities.
+- `GET  /api/institution/students` — Searchable and filterable student roster with computed risk factors.
+- `POST /api/institution/students` — Administratively enrolls and persists a new student in SQLite.
+- `POST /api/institution/students/assign-mentor` — Persistently assigns or reassigns faculty mentor in SQLite.
 - `GET  /api/institution/interventions` — Active administrative priorities and interventions.
-- `GET  /api/student/dashboard` — Personal student cockpit telemetry and assigned tasks.
+- `POST /api/institution/interventions` — Creates new intervention task in SQLite.
+- `POST /api/institution/interventions/{id}/toggle` — Toggles intervention status between OPEN and COMPLETED.
+- `GET  /api/student/dashboard` — Personal student cockpit telemetry (Anti-IDOR protected; 404 on missing roll).
 - `POST /api/student/simulate` — Dynamic What-If score calculator.
 - `POST /api/student/tasks/{id}/toggle` — Interactive task status completion update.
 
@@ -119,8 +124,24 @@ For evaluation and hackathon demonstrations, the following accounts are initiali
 
 ## 7. Automated Test Suite
 
-Run the full backend and ML integration test suite:
+Run the full backend integration and anti-IDOR test suite:
 ```bash
-python tests/test_backend.py
+python -m pytest tests/
 ```
-**Results:** 12/12 test suites passing (Health, Admin Auth, Student Auth, Roll ID Auth, Invalid Credentials, Role Isolation, Dataset Aggregation, Department Metrics, Student Filters, Cockpit Telemetry, What-If Simulator, Logout).
+**Results:** **19/19 tests passing (100% pass rate)** covering health check, PBKDF2 authentication, role isolation, anti-IDOR protection, 404 verification, cohort analytics, and dynamic scoring.
+
+---
+
+## 8. Documentation Deliverables
+
+Detailed technical documentation and audit reports are available in [`docs/`](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs):
+
+1. **[docs/PROJECT_AUDIT.md](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs/PROJECT_AUDIT.md):** Architectural audit, component inventory, security findings, and technical debt.
+2. **[docs/DATA_DICTIONARY.md](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs/DATA_DICTIONARY.md):** Complete field-level schema definitions for SQLite and Kaggle datasets.
+3. **[docs/DATA_RECONCILIATION_REPORT.md](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs/DATA_RECONCILIATION_REPORT.md):** Reconciliation between SQLite student roster and 50,000 Kaggle cohort records.
+4. **[docs/METHODOLOGY.md](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs/METHODOLOGY.md):** Mathematical formulation of the Student Success Score, dual risk engines, and simulation.
+5. **[docs/SECURITY_AND_CREDENTIALS.md](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs/SECURITY_AND_CREDENTIALS.md):** PBKDF2 hashing, JWT signing, RBAC hierarchy, and anti-IDOR enforcement.
+6. **[docs/UI_UX_CHANGELOG.md](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs/UI_UX_CHANGELOG.md):** UI redesign changelog, Dual-Atmosphere styling, and accessibility standards.
+7. **[docs/TEST_REPORT.md](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs/TEST_REPORT.md):** Comprehensive test results (19/19 pytest passed) and Vite production build logs.
+8. **[docs/FINAL_VERIFICATION_REPORT.md](file:///c:/Users/Lenovo/Downloads/CODEBUFFET-git/docs/FINAL_VERIFICATION_REPORT.md):** End-to-end system validation and production sign-off.
+

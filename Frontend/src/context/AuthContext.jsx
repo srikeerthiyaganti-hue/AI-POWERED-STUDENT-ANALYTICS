@@ -125,16 +125,11 @@ export function AuthProvider({ children }) {
       student: { identifier: 'STU-2024-042', password: 'Student@2026!', portalRole: 'student' },
     };
     const cred = credentials[roleKey] || credentials.admin;
-    const fallback = demoUsers[roleKey] || demoUsers.admin;
     try {
       return await login(cred.identifier, cred.password, cred.portalRole);
-    } catch {
-      // In offline/standalone demo mode, gracefully sign in as demo role
-      try {
-        sessionStorage.setItem('codebuffet_user', JSON.stringify(fallback));
-      } catch {}
-      setCurrentUser(fallback);
-      return { success: true, user: fallback, offline: true };
+    } catch (err) {
+      console.error(`Authentication failed for ${roleKey}:`, err);
+      throw err;
     }
   };
 

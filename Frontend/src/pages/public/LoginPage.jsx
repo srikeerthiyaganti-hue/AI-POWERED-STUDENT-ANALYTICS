@@ -137,44 +137,49 @@ export default function LoginPage() {
         }}
         className="login-form-wrapper"
       >
-        {/* Top Header: Logo + Nav */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <BrandLogo variant="light" size="default" />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.88rem' }}>
-            <Link
-              to="/"
-              style={{
-                color: 'var(--color-navy)',
-                textDecoration: 'none',
-                fontWeight: 600,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              Home
-            </Link>
-            <button
-              onClick={() => setShowResetModal(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-text-secondary)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                cursor: 'pointer',
-                fontSize: '0.88rem',
-              }}
-            >
-              <HelpCircle size={15} />
-              <span>Security Help</span>
-            </button>
-          </div>
+        {/* Top Header: Nav controls */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+          <Link
+            to="/"
+            style={{
+              color: 'var(--color-navy)',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '0.88rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            ← Home
+          </Link>
+          <button
+            onClick={() => setShowResetModal(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-text-secondary)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              cursor: 'pointer',
+              fontSize: '0.88rem',
+            }}
+          >
+            <HelpCircle size={15} />
+            <span>Security Help</span>
+          </button>
         </div>
 
         {/* Center Main Form */}
         <div style={{ maxWidth: '440px', width: '100%', margin: '0 auto' }}>
+          {/* Centered Brand Logo on Entry Screen */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem', textAlign: 'center' }}>
+            <BrandLogo variant="light" size="large" />
+            <div style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              Student Success Intelligence Platform
+            </div>
+          </div>
           {/* Eyebrow & Live Backend Badge */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
             <div

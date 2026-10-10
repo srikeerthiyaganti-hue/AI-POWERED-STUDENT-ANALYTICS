@@ -69,6 +69,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/mentor/*" element={<Navigate to="/mentor/dashboard" replace />} />
 
       {/* Placement Officer Portal */}
       <Route
