@@ -1,10 +1,38 @@
 
+"""
+CODEBUFFET — FastAPI Main Application Entrypoint
+Student Success Intelligence Platform Backend Service
+"""
+
+import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+from backend.database import init_db, seed_initial_data
+from backend.routes.auth_routes import router as auth_router
+from backend.routes.institution_routes import router as institution_router
+from backend.routes.student_routes import router as student_router
 
-# CORS Middleware configured for frontend integration
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    seed_initial_data()
+    yield
+
+
+app = FastAPI(
+    title="CODEBUFFET — Student Success Intelligence API",
+    description=(
+        "Backend service providing authentication, student telemetry, "
+        "ML risk predictions, and institution analytics."
+    ),
+    version="2.0.0",
+    lifespan=lifespan,
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -24,10 +52,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
+app.include_router(institution_router)
+app.include_router(student_router)
+
+
 @app.get("/api/health")
-def health_check():
+async def health_check():
     return {
         "status": "healthy",
-        "service": "AI Student Analytics API"
+        "platform": "CODEBUFFET Student Success Intelligence Platform",
+        "version": "2.0.0",
+        "engine": "FastAPI + LightGBM ML Pipeline",
+        "database": "SQLite Operational",
     }
-uvicorn.run("backend.main:app", host=host, port=port, reload=True)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("backend.main:app", host=host, port=port)
