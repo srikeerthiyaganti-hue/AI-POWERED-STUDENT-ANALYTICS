@@ -36,6 +36,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Local development
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
@@ -44,7 +45,13 @@ app.add_middleware(
         "http://127.0.0.1:3002",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+
+        # Original hackathon deployment URL
         "https://ai-powered-student-analytics-g5yyvnry9-srikeerthiyaganti-hue.vercel.app",
+
+        # Other Vercel deployment URLs
+        "https://ai-powered-student-analytics-qcqmmkbec-srikeerthiyaganti-hue.vercel.app",
+        "https://ai-powered-student-analytics-three.vercel.app",
     ],
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
