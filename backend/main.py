@@ -33,27 +33,39 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Allowed Origins for CORS
+ALLOWED_ORIGINS = [
+    # Local development
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+
+    # Production Vercel canonical domain
+    "https://ai-powered-student-analytics.vercel.app",
+
+    # Team / User domain
+    "https://ai-powered-student-analytics-srikeerthiyaganti-hue.vercel.app",
+
+    # Verified deployment URLs & aliases
+    "https://ai-powered-student-analytics-three.vercel.app",
+    "https://ai-powered-student-analytics-g5yyvnry9-srikeerthiyaganti-hue.vercel.app",
+    "https://ai-powered-student-analytics-qcqmmkbec-srikeerthiyaganti-hue.vercel.app",
+]
+
+# Optional environment override from Render/deployment settings
+_env_frontend = os.getenv("FRONTEND_URL", "").strip()
+if _env_frontend and _env_frontend not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(_env_frontend)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        # Local development
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://localhost:3002",
-        "http://127.0.0.1:3002",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-
-        # Original hackathon deployment URL
-        "https://ai-powered-student-analytics-g5yyvnry9-srikeerthiyaganti-hue.vercel.app",
-
-        # Other Vercel deployment URLs
-        "https://ai-powered-student-analytics-qcqmmkbec-srikeerthiyaganti-hue.vercel.app",
-        "https://ai-powered-student-analytics-three.vercel.app",
-    ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https://ai-powered-student-analytics(-[a-zA-Z0-9_-]+)?\.vercel\.app)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
