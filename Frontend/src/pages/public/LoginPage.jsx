@@ -26,7 +26,7 @@ export default function LoginPage() {
 
   const [portal, setPortal] = useState('institution'); // 'institution' | 'student'
   const [identifier, setIdentifier] = useState('admin@codebuffet.edu');
-  const [password, setPassword] = useState('CodeBuffet@2026!');
+  const [password, setPassword] = useState('AdminDemo#2026');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
@@ -38,11 +38,11 @@ export default function LoginPage() {
     setPortal(newPortal);
     setError('');
     if (newPortal === 'student') {
-      setIdentifier('STU-2024-042');
-      setPassword('Student@2026!');
+      setIdentifier('STU-2026-018');
+      setPassword('StudentDemo#2026');
     } else {
       setIdentifier('admin@codebuffet.edu');
-      setPassword('CodeBuffet@2026!');
+      setPassword('AdminDemo#2026');
     }
   };
 
@@ -52,19 +52,19 @@ export default function LoginPage() {
     if (roleKey === 'admin') {
       setPortal('institution');
       setIdentifier('admin@codebuffet.edu');
-      setPassword('CodeBuffet@2026!');
+      setPassword('AdminDemo#2026');
     } else if (roleKey === 'student') {
       setPortal('student');
-      setIdentifier('STU-2024-042');
-      setPassword('Student@2026!');
+      setIdentifier('STU-2026-018');
+      setPassword('StudentDemo#2026');
     } else if (roleKey === 'mentor') {
       setPortal('institution');
-      setIdentifier('rajesh.kumar@codebuffet.edu');
-      setPassword('Mentor@2026!');
+      setIdentifier('vihaan.singh@codebuffet.edu');
+      setPassword('MentorDemo#2026');
     } else if (roleKey === 'tpo') {
       setPortal('institution');
-      setIdentifier('vikram.tpo@codebuffet.edu');
-      setPassword('TPO@2026!');
+      setIdentifier('aarush.dev@codebuffet.edu');
+      setPassword('PlacementDemo#2026');
     }
   };
 
@@ -347,7 +347,7 @@ export default function LoginPage() {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={portal === 'student' ? 'e.g. STU-2024-042' : 'e.g. admin@codebuffet.edu'}
+                  placeholder={portal === 'student' ? 'e.g. STU-2026-018' : 'e.g. admin@codebuffet.edu'}
                   required
                   style={{
                     width: '100%',
@@ -532,7 +532,7 @@ export default function LoginPage() {
                   cursor: 'pointer',
                 }}
               >
-                🏛️ Admin (Dr. Kumar)
+                ADMIN
               </button>
               <button
                 type="button"
@@ -549,7 +549,7 @@ export default function LoginPage() {
                   cursor: 'pointer',
                 }}
               >
-                🎓 Student (Aarav)
+                STUDENT
               </button>
               <button
                 type="button"
@@ -566,7 +566,7 @@ export default function LoginPage() {
                   cursor: 'pointer',
                 }}
               >
-                👨‍🏫 Faculty Mentor
+                FACULTY
               </button>
               <button
                 type="button"
@@ -583,7 +583,7 @@ export default function LoginPage() {
                   cursor: 'pointer',
                 }}
               >
-                💼 Placement Officer
+                PLACEMENT MENTOR
               </button>
             </div>
             <div style={{ fontSize: '0.70rem', color: '#64748B', marginTop: '8px' }}>
@@ -605,9 +605,9 @@ export default function LoginPage() {
         style={{
           flex: '1 1 50%',
           position: 'relative',
-          backgroundImage: `url('/assets/images/codebuffet_campus_entrance.jpg')`,
+          backgroundImage: `url('/images/signin-bg.png')`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center 45%',
+          backgroundPosition: 'center',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end',

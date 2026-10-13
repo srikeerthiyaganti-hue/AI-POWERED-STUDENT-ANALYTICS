@@ -66,7 +66,7 @@ class StudentCreateRequest(BaseModel):
     aptitude_score: float = 75.0
     communication_skills: float = 7.5
     lms_assignment_completion_pct: float = 80.0
-    assigned_mentor: Optional[str] = "Prof. Rajesh Kumar"
+    assigned_mentor: Optional[str] = "Prof. Vihaan Singh"
     avatar_url: Optional[str] = None
 
 
@@ -495,7 +495,7 @@ async def get_students(
             "placementRisk": r["placement_risk_band"],
             "placementRiskProb": r["placement_risk_prob"],
             "topRiskFactor": _compute_risk_factor(r),
-            "assignedMentor": (r["assigned_mentor"] if "assigned_mentor" in r.keys() and r["assigned_mentor"] else "Prof. Rajesh Kumar"),
+            "assignedMentor": (r["assigned_mentor"] if "assigned_mentor" in r.keys() and r["assigned_mentor"] else "Prof. Vihaan Singh"),
             "avatar": r["avatar_url"],
             "codingSkills": r["coding_skills"],
             "dsaScore": r["dsa_score"],
@@ -650,7 +650,7 @@ async def create_student(
     plac_risk_band = "HIGH" if plac_risk_prob >= 0.6 else ("MEDIUM" if plac_risk_prob >= 0.3 else "LOW")
 
     avatar = req.avatar_url or "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80"
-    assigned_mentor = req.assigned_mentor or "Prof. Rajesh Kumar"
+    assigned_mentor = req.assigned_mentor or "Prof. Vihaan Singh"
 
     cursor.execute("""
     INSERT INTO students (
@@ -750,7 +750,7 @@ async def get_mentors(
     conn.close()
 
     specializations = {
-        "Prof. Rajesh Kumar": "Distributed Systems, Machine Learning & Algorithms",
+        "Prof. Vihaan Singh": "Distributed Systems, Machine Learning & Algorithms",
         "Dr. Sunita Sharma": "VLSI Design, Embedded IoT & Signal Processing",
         "Prof. K. Murthy": "Thermal Engineering, CAD/CAM & Industrial Robotics",
     }

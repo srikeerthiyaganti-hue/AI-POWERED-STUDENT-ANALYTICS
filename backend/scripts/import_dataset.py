@@ -34,10 +34,38 @@ BRANCH_MAP = {
 }
 
 AVAILABLE_MENTORS = [
-    "Prof. Rajesh Kumar",
+    "Prof. Vihaan Singh",
     "Dr. Sunita Sharma",
     "Prof. K. Murthy",
 ]
+
+UNSPLASH_AVATARS = [
+    "photo-1534528741775-53994a69daeb", "photo-1507003211169-0a1dd7228f2d",
+    "photo-1500648767791-00dcc994a43e", "photo-1494790108377-be9c29b29330",
+    "photo-1522075469751-3a6694fb2f61", "photo-1517841905240-472988babdf9",
+    "photo-1539571696357-5a69c17a67c6", "photo-1524504388940-b1c1722653e1",
+    "photo-1506794778202-cad84cf45f1d", "photo-1519085360753-af0119f7cbe7",
+    "photo-1534751516642-a171edd25218", "photo-1544005313-94ddf0286df2",
+    "photo-1508214751196-bcfd4ca60f91", "photo-1492562080023-ab3db95bfbce",
+    "photo-1548142813-c348350df52b", "photo-1531746020798-e6953c6e8e04",
+    "photo-1570295999919-56ceb5ecca61", "photo-1580489944761-15a19d654956",
+    "photo-1527980965255-d3b416303d12", "photo-1544717305-2782549b5136",
+    "photo-1519764622345-23439dd774f7", "photo-1535713875002-d1d0cf377fde",
+    "photo-1560250097-0b93528c311a", "photo-1573496359142-b8d87734a5a2",
+    "photo-1573497019940-1c28c88b4f3e", "photo-1562788869-4ed32648eb72",
+    "photo-1542206395-9feb3edaa68d", "photo-1563237023-b1e970526dbe",
+    "photo-1566492031773-4f4e44671857", "photo-1568602471122-7832951cc4c5"
+]
+
+def get_mentor_for_department(dept: str) -> str:
+    d = (dept or "").lower()
+    if "computer" in d or "information" in d or "cse" in d or "it" in d:
+        return "Prof. Vihaan Singh"
+    elif "electronics" in d or "electrical" in d or "ece" in d or "eee" in d:
+        return "Dr. Sunita Sharma"
+    else:
+        return "Prof. K. Murthy"
+
 
 
 def ingest_dataset(
@@ -116,7 +144,13 @@ def ingest_dataset(
             backlogs = max(0, min(20, backlogs))
 
             raw_att = row.get("overall_attendance_pct") or row.get("attendance_percentage") or row.get("attendance")
-            attendance = float(raw_att) if pd.notnull(raw_att) else 85.0
+            if pd.notnull(raw_att):
+                attendance = float(raw_att)
+            else:
+                import hashlib
+                base_att = 65.0 + (cgpa - 5.5) * 6.0 - (backlogs * 5.5)
+                noise = ((int(hashlib.md5(roll_no.encode()).hexdigest()[:6], 16) % 91) - 45) / 10.0
+                attendance = round(max(55.0, min(97.8, base_att + noise)), 1)
             attendance = max(0.0, min(100.0, attendance))
 
             # 5. Technical & Skill Indicators
@@ -173,8 +207,11 @@ def ingest_dataset(
             plac_prob = risk_res["placement_risk"]["probability"]
             plac_band = risk_res["placement_risk"]["band"]
 
-            # Deterministic mentor assignment
-            mentor = AVAILABLE_MENTORS[idx % len(AVAILABLE_MENTORS)]
+            # Department-aligned mentor assignment
+            mentor = get_mentor_for_department(dept)
+
+            # Curated Unsplash portrait
+            avatar_url = f"https://images.unsplash.com/{UNSPLASH_AVATARS[idx % len(UNSPLASH_AVATARS)]}?w=150&auto=format&fit=crop&q=80"
 
             # Calculate data completeness
             known_domains = sum([
@@ -207,7 +244,7 @@ def ingest_dataset(
                 acad_band,
                 plac_prob,
                 plac_band,
-                None, # avatar_url
+                avatar_url,
                 mentor,
                 row_record_type,
                 source_provenance,

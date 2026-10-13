@@ -37,9 +37,9 @@ export default function StudentDashboard() {
 
   // Mentor Tasks State
   const [tasks, setTasks] = useState([
-    { id: 1, text: 'Complete LeetCode Top 50 DSA practice set', due: 'Oct 15, 2026', done: true, mentor: 'Prof. Rajesh Kumar' },
+    { id: 1, text: 'Complete LeetCode Top 50 DSA practice set', due: 'Oct 15, 2026', done: true, mentor: 'Prof. Vihaan Singh' },
     { id: 2, text: 'Submit Microservices Architecture case study on LMS', due: 'Oct 22, 2026', done: false, mentor: 'Dr. R. Kumar' },
-    { id: 3, text: 'Attend Corporate Mock Technical Interview Session', due: 'Oct 28, 2026', done: false, mentor: 'Vikram Malhotra (TPO)' },
+    { id: 3, text: 'Attend Corporate Mock Technical Interview Session', due: 'Oct 28, 2026', done: false, mentor: 'Aarush Dev (TPO)' },
   ]);
 
   // Load backend student telemetry on mount
@@ -47,7 +47,7 @@ export default function StudentDashboard() {
     let isMounted = true;
     async function fetchStudentCockpit() {
       try {
-        const roll = currentUser?.roll_no || 'STU-2024-042';
+        const roll = currentUser?.roll_no || 'STU-2026-018';
         const data = await api.getStudentDashboard(roll);
         if (isMounted && data) {
           setStudentData(data);
@@ -160,7 +160,7 @@ export default function StudentDashboard() {
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#FFFFFF' }} />
             <span>{isLiveApi ? 'FASTAPI ML BACKEND ACTIVE' : 'STUDENT PORTAL'}</span>
           </span>
-          <span>Logged in as: <strong>{currentUser?.name || 'Aarav Sharma'}</strong> (Roll ID: STU-2024-042)</span>
+          <span>Logged in as: <strong>{currentUser?.name || 'Aarav Sharma'}</strong> (Roll ID: {currentUser?.roll_no || 'STU-2026-018'})</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.72rem', color: '#94A3B8', marginRight: '4px' }}>Switch View:</span>

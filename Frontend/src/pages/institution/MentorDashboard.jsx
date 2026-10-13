@@ -21,6 +21,7 @@ import {
   Cell,
 } from 'recharts';
 import BrandLogo from '../../components/common/BrandLogo';
+import StudentAvatar from '../../components/common/StudentAvatar';
 import { useAuth } from '../../context/AuthContext';
 import { MOCK_STUDENTS } from '../../data/mockStudents';
 import api from '../../services/api';
@@ -62,7 +63,7 @@ export default function MentorDashboard() {
     async function fetchMentorData() {
       if (isMounted) setLoading(true);
       try {
-        const mentorName = currentUser?.name || currentUser?.full_name || 'Prof. Rajesh Kumar';
+        const mentorName = currentUser?.name || currentUser?.full_name || 'Prof. Vihaan Singh';
         const cleanName = mentorName.replace(/^Prof\.\s*/i, '').replace(/^Dr\.\s*/i, '').trim();
         const [studRes, intervRes] = await Promise.allSettled([
           api.getInstitutionStudents({ mentor: cleanName }),
@@ -119,12 +120,12 @@ export default function MentorDashboard() {
             setInterventions([
               {
                 id: 1,
-                student_roll_no: 'STU-2024-042',
+                student_roll_no: 'STU-2026-018',
                 student_name: 'Aarav Sharma',
                 department: 'Computer Science & Engineering',
                 title: 'Complete LeetCode Top 50 DSA practice set',
                 category: 'SKILL_GAP',
-                assigned_mentor: 'Prof. Rajesh Kumar',
+                assigned_mentor: 'Prof. Vihaan Singh',
                 status: 'OPEN',
                 due_date: 'Oct 15, 2026',
               },
@@ -135,7 +136,7 @@ export default function MentorDashboard() {
                 department: 'Computer Science & Engineering',
                 title: 'Urgent Attendance Counseling & Arrears Remedial',
                 category: 'ATTENDANCE',
-                assigned_mentor: 'Prof. Rajesh Kumar',
+                assigned_mentor: 'Prof. Vihaan Singh',
                 status: 'OPEN',
                 due_date: 'Oct 12, 2026',
               },
@@ -181,7 +182,7 @@ export default function MentorDashboard() {
         department: 'Computer Science & Engineering',
         title: newTaskTitle.trim(),
         category: newTaskCategory,
-        assigned_mentor: currentUser?.name || 'Prof. Rajesh Kumar',
+        assigned_mentor: currentUser?.name || 'Prof. Vihaan Singh',
         due_date: newTaskDueDate,
       };
       const res = await api.createIntervention(payload);
@@ -268,7 +269,7 @@ export default function MentorDashboard() {
             <span>{isLiveApi ? 'FASTAPI MENTOR ENDPOINTS ACTIVE' : 'FACULTY MENTOR PORTAL'}</span>
           </span>
           <span>
-            Logged in as: <strong>{currentUser?.name || 'Prof. Rajesh Kumar'}</strong> (Faculty Mentor • CSE)
+            Logged in as: <strong>{currentUser?.name || 'Prof. Vihaan Singh'}</strong> (Faculty Mentor • CSE)
           </span>
         </div>
 
@@ -504,11 +505,11 @@ export default function MentorDashboard() {
                     border: '2px solid #A7F3D0',
                   }}
                 >
-                  PR
+                  VS
                 </div>
                 <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
-                    Prof. Rajesh Kumar
+                    Prof. Vihaan Singh
                   </div>
                   <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Faculty Mentor • CSE</div>
                 </div>
@@ -560,7 +561,7 @@ export default function MentorDashboard() {
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  Welcome back, Prof. Rajesh Kumar!
+                  Welcome back, Prof. Vihaan Singh!
                 </h1>
                 <p style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.92rem', margin: 0, maxWidth: '520px' }}>
                   Proactive student mentorship: Review attendance trends, arrears status, and trigger targeted remedial interventions.
@@ -1009,7 +1010,12 @@ export default function MentorDashboard() {
                           }}
                         >
                           <td style={{ padding: '12px 8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <img src={s.avatar} alt={s.name} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+                            <StudentAvatar
+                              src={s.avatar}
+                              name={s.name}
+                              id={s.id}
+                              size={32}
+                            />
                             <div>
                               <div style={{ fontWeight: 700 }}>{s.name}</div>
                               <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{s.id}</div>

@@ -38,7 +38,7 @@ async def get_student_dashboard(
 
     # Anti-IDOR: Students can only view their own telemetry record
     if user_role == "student":
-        target_roll = user_roll or "STU-2024-042"
+        target_roll = user_roll or "STU-2026-018"
         if roll_no and roll_no.strip().upper() != target_roll.upper():
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -46,7 +46,7 @@ async def get_student_dashboard(
             )
     else:
         # Institutional staff (admin, mentor, tpo) may inspect requested student
-        target_roll = roll_no or "STU-2024-042"
+        target_roll = roll_no or "STU-2026-018"
 
     conn = get_db_connection()
     cursor = conn.cursor()

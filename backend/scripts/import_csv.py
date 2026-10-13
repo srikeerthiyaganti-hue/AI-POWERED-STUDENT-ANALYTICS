@@ -31,10 +31,43 @@ BRANCH_MAP = {
 }
 
 AVAILABLE_MENTORS = [
-    "Prof. Rajesh Kumar",
-    "Dr. R. Kumar",
-    "Vikram Malhotra",
+    "Prof. Vihaan Singh",
+    "Dr. Sunita Sharma",
+    "Prof. K. Murthy",
 ]
+
+PHOTO_IDS = [
+    "photo-1534528741775-53994a69daeb", "photo-1507003211169-0a1dd7228f2d",
+    "photo-1494790108377-be9c29b29330", "photo-1500648767791-00dcc994a43e",
+    "photo-1539571696357-5a69c17a67c6", "photo-1522075469751-3a6694fb2f61",
+    "photo-1517841905240-472988babdf9", "photo-1492562080023-ab3db95bfbce",
+    "photo-1506794778202-cad84cf45f1d", "photo-1524504388940-b1c1722653e1",
+    "photo-1519085360753-af0119f7cbe7", "photo-1544005313-94ddf0286df2",
+    "photo-1508214751196-bcfd4ca60f91", "photo-1531746020798-e6953c6e8e04",
+    "photo-1529626455594-4ff0802cfb7e", "photo-1488426862026-3ee34a7d66df",
+    "photo-1544717305-2782549b5136", "photo-1517677208171-0bc6725a3e60",
+    "photo-1527980965255-d3b416303d12", "photo-1535713875002-d1d0cf377fde",
+    "photo-1534751516642-a171ef2ad3f9", "photo-1520813792240-56fc4a3765a7",
+    "photo-1501196354995-cbb51c65aaea", "photo-1542909168-82c3e7fdca5c",
+    "photo-1519699047748-de8e457a634e", "photo-1528892952291-009c663ce843",
+    "photo-1570295999919-56ceb5ecca61", "photo-1580489944761-15a19d654956",
+    "photo-1560250097-0b93528c311a", "photo-1573496359142-b8d87734a5a2",
+    "photo-1573497019940-1c28c88b4f3e", "photo-1567532939604-b6b5b0db2604",
+    "photo-1535295972055-1c762f4483e5", "photo-1548142813-c348350df52b",
+    "photo-1517486808906-6ca8b3f04846", "photo-1541823709867-1b206113eafd",
+    "photo-1552058544-f2b08422138a", "photo-1543610892-0b1f7e6d8ac1",
+    "photo-1542103749-8ef59b94f47e", "photo-1563240619-44ec0047592c",
+    "photo-1566492031773-4f4e44671857", "photo-1568602471122-7832951cc4c5"
+]
+
+def get_mentor_for_department(dept: str) -> str:
+    d = (dept or "").lower()
+    if "computer" in d or "information" in d or "cse" in d or "it" in d:
+        return "Prof. Vihaan Singh"
+    elif "electronics" in d or "electrical" in d or "ece" in d or "eee" in d:
+        return "Dr. Sunita Sharma"
+    else:
+        return "Prof. K. Murthy"
 
 
 def sync_csv_to_db(
@@ -81,7 +114,12 @@ def sync_csv_to_db(
             hackathons = int(row["hackathons"]) if pd.notnull(row.get("hackathons")) else 0
             certifications = int(row["certifications"]) if pd.notnull(row.get("certifications")) else 0
 
-            attendance = 85.0
+            # Realistic continuous attendance correlated with academic performance and backlogs
+            import hashlib
+            base_att = 65.0 + (cgpa - 5.5) * 6.0 - (backlogs * 5.5)
+            noise = ((int(hashlib.md5(roll_no.encode()).hexdigest()[:6], 16) % 91) - 45) / 10.0
+            attendance = round(max(55.0, min(97.8, base_att + noise)), 1)
+
             lms_comp = 80.0
             year = "3rd Year"
             semester = 6
@@ -104,14 +142,23 @@ def sync_csv_to_db(
             score_res = calculate_student_success_score(sim_data)
             success_score = score_res["student_success_score"]
 
-            # Decoupled Risk Formulas
-            acad_risk_prob = min(0.95, max(0.05, 0.15 + (backlogs * 0.25) + (max(0, 7.0 - cgpa) * 0.15)))
-            acad_risk_band = "HIGH" if acad_risk_prob >= 0.6 else ("MEDIUM" if acad_risk_prob >= 0.3 else "LOW")
+            # Decoupled Risk Formulas (Preserving Academic Risk Policy: Backlogs >= 2, Attendance < 75%, CGPA < 6.5)
+            if backlogs >= 2 or (backlogs >= 1 and attendance < 75.0) or (attendance < 65.0 and cgpa < 6.5):
+                acad_risk_band = "HIGH"
+                acad_risk_prob = round(max(0.65, min(0.95, 0.45 + backlogs * 0.15 + (75.0 - attendance) * 0.01)), 2)
+            elif backlogs == 1 or attendance < 75.0 or cgpa < 6.5:
+                acad_risk_band = "MEDIUM"
+                acad_risk_prob = round(max(0.35, min(0.59, 0.25 + backlogs * 0.10 + (75.0 - attendance) * 0.008)), 2)
+            else:
+                acad_risk_band = "LOW"
+                acad_risk_prob = round(max(0.05, min(0.24, 0.08 + (7.0 - min(cgpa, 7.0)) * 0.05)), 2)
 
             plac_risk_prob = min(0.95, max(0.05, 0.10 + (max(0, 6.0 - coding) * 0.12) + (max(0, 6.5 - cgpa) * 0.10)))
             plac_risk_band = "HIGH" if plac_risk_prob >= 0.6 else ("MEDIUM" if plac_risk_prob >= 0.3 else "LOW")
 
-            mentor = AVAILABLE_MENTORS[idx % len(AVAILABLE_MENTORS)]
+            mentor = get_mentor_for_department(dept)
+            photo_id = PHOTO_IDS[idx % len(PHOTO_IDS)]
+            avatar_url = f"https://images.unsplash.com/{photo_id}?w=100&auto=format&fit=crop&q=80"
 
             records_to_upsert.append((
                 roll_no,
@@ -132,7 +179,7 @@ def sync_csv_to_db(
                 acad_risk_band,
                 round(plac_risk_prob, 2),
                 plac_risk_band,
-                None, # avatar_url left null
+                avatar_url,
                 mentor,
                 "anonymous_cohort",
                 "Kaggle Benchmark Dataset (kaggle.csv - 50,000 Records)",

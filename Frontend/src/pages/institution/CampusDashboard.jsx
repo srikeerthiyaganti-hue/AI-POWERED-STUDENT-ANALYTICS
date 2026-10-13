@@ -56,6 +56,7 @@ import {
   Bar,
 } from 'recharts';
 import BrandLogo from '../../components/common/BrandLogo';
+import StudentAvatar from '../../components/common/StudentAvatar';
 import { useAuth } from '../../context/AuthContext';
 import {
   MOCK_STUDENTS,
@@ -186,7 +187,7 @@ export default function CampusDashboard() {
   const [newStudentCgpa, setNewStudentCgpa] = useState('7.8');
   const [newStudentAtt, setNewStudentAtt] = useState('85.0');
   const [newStudentBacklogs, setNewStudentBacklogs] = useState('0');
-  const [newStudentMentor, setNewStudentMentor] = useState('Prof. Rajesh Kumar');
+  const [newStudentMentor, setNewStudentMentor] = useState('Prof. Vihaan Singh');
   const [enrollSubmitting, setEnrollSubmitting] = useState(false);
   const [enrollNotice, setEnrollNotice] = useState('');
 
@@ -374,6 +375,7 @@ export default function CampusDashboard() {
     setCohortStudents((prev) =>
       prev.map((s) => (s.id === rollNo ? { ...s, assignedMentor: mentorName } : s))
     );
+    setSelectedStudent((prev) => (prev && prev.id === rollNo ? { ...prev, assignedMentor: mentorName } : prev));
     try {
       await api.assignMentor(rollNo, mentorName);
       // Refresh mentors list
@@ -400,7 +402,7 @@ export default function CampusDashboard() {
 
   // 7. Active Mentors Data
   const defaultMentors = [
-    { name: 'Prof. Rajesh Kumar', department: 'Computer Science & Engineering', assigned_students_count: 3, open_interventions_count: 3 },
+    { name: 'Prof. Vihaan Singh', department: 'Computer Science & Engineering', assigned_students_count: 3, open_interventions_count: 3 },
     { name: 'Dr. Sunita Sharma', department: 'Electronics & Communication', assigned_students_count: 3, open_interventions_count: 2 },
     { name: 'Prof. K. Murthy', department: 'Mechanical Engineering', assigned_students_count: 2, open_interventions_count: 2 },
   ];
@@ -1636,7 +1638,7 @@ export default function CampusDashboard() {
                       Step 3: Governance & Mentor Allocation
                     </h3>
                     <p style={{ fontSize: '0.80rem', color: '#64748B', margin: 0, lineHeight: 1.5 }}>
-                      Assigned to <strong>Prof. Rajesh Kumar (CSE Department Head)</strong> with automated calendar notification and weekly check-in mandates.
+                      Assigned to <strong>Prof. Vihaan Singh (CSE Department Head)</strong> with automated calendar notification and weekly check-in mandates.
                     </p>
                   </div>
                 )}
@@ -1856,10 +1858,11 @@ export default function CampusDashboard() {
                           }}
                         >
                           <td style={{ padding: '12px 8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <img
-                              src={s.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80"}
-                              alt={s.name}
-                              style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover' }}
+                            <StudentAvatar
+                              src={s.avatar}
+                              name={s.name}
+                              id={s.id}
+                              size={30}
                             />
                             <div>
                               <div style={{ fontWeight: 700 }}>{s.name}</div>
@@ -1933,7 +1936,7 @@ export default function CampusDashboard() {
                           </td>
                           <td style={{ padding: '12px 8px' }}>
                             <select
-                              value={s.assignedMentor || 'Prof. Rajesh Kumar'}
+                              value={s.assignedMentor || 'Prof. Vihaan Singh'}
                               onChange={(e) => handleAssignMentor(s.id, e.target.value)}
                               style={{
                                 padding: '4px 6px',
@@ -1946,7 +1949,7 @@ export default function CampusDashboard() {
                                 cursor: 'pointer',
                               }}
                             >
-                              <option value="Prof. Rajesh Kumar">Prof. Rajesh Kumar (CSE)</option>
+                              <option value="Prof. Vihaan Singh">Prof. Vihaan Singh (CSE)</option>
                               <option value="Dr. Sunita Sharma">Dr. Sunita Sharma (ECE)</option>
                               <option value="Prof. K. Murthy">Prof. K. Murthy (MECH)</option>
                             </select>
@@ -2011,10 +2014,11 @@ export default function CampusDashboard() {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <img
-                        src={selectedStudent.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80"}
-                        alt={selectedStudent.name}
-                        style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }}
+                      <StudentAvatar
+                        src={selectedStudent.avatar}
+                        name={selectedStudent.name}
+                        id={selectedStudent.id}
+                        size={48}
                       />
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2026,7 +2030,7 @@ export default function CampusDashboard() {
                           </span>
                         </div>
                         <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                          Roll ID: <strong>{selectedStudent.id}</strong> • {selectedStudent.department} • Assigned to <strong>{selectedStudent.assignedMentor || 'Prof. Rajesh Kumar'}</strong>
+                          Roll ID: <strong>{selectedStudent.id}</strong> • {selectedStudent.department} • Assigned to <strong>{selectedStudent.assignedMentor || 'Prof. Vihaan Singh'}</strong>
                         </div>
                       </div>
                     </div>
@@ -2203,7 +2207,7 @@ export default function CampusDashboard() {
                     onChange={(e) => setNewStudentMentor(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
                   >
-                    <option value="Prof. Rajesh Kumar">Prof. Rajesh Kumar (CSE)</option>
+                    <option value="Prof. Vihaan Singh">Prof. Vihaan Singh (CSE)</option>
                     <option value="Dr. Sunita Sharma">Dr. Sunita Sharma (ECE)</option>
                     <option value="Prof. K. Murthy">Prof. K. Murthy (MECH)</option>
                   </select>

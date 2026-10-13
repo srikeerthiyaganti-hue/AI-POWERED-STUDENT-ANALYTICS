@@ -45,6 +45,7 @@ import {
   Bar,
 } from 'recharts';
 import BrandLogo from '../../components/common/BrandLogo';
+import StudentAvatar from '../../components/common/StudentAvatar';
 import { useAuth } from '../../context/AuthContext';
 import { MOCK_STUDENTS, DEPARTMENT_SCORES } from '../../data/mockStudents';
 import api from '../../services/api';
@@ -118,7 +119,7 @@ export default function PlacementDashboard() {
         department: interviewCandidate.department,
         title: `Corporate Mock Technical Interview (DSA & System Design)`,
         category: 'PLACEMENT',
-        assigned_mentor: 'Vikram Malhotra (TPO)',
+        assigned_mentor: 'Aarush Dev (TPO)',
         due_date: interviewDate,
       });
       setActionNotice(`Mock interview scheduled for ${interviewCandidate.name} on ${interviewDate}!`);
@@ -203,7 +204,7 @@ export default function PlacementDashboard() {
             <span>{isLiveApi ? 'FASTAPI TPO TELEMETRY ACTIVE' : 'PLACEMENT OFFICER PORTAL'}</span>
           </span>
           <span>
-            Logged in as: <strong>{currentUser?.name || 'Vikram Malhotra'}</strong> (Placement Director)
+            Logged in as: <strong>{currentUser?.name || 'Aarush Dev'}</strong> (Placement Director)
           </span>
         </div>
 
@@ -469,11 +470,11 @@ export default function PlacementDashboard() {
                     border: '2px solid #DDD6FE',
                   }}
                 >
-                  VM
+                  AD
                 </div>
                 <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
-                    Vikram Malhotra
+                    Aarush Dev
                   </div>
                   <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Placement Director</div>
                 </div>
@@ -525,7 +526,7 @@ export default function PlacementDashboard() {
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  Welcome back, Vikram Malhotra!
+                  Welcome back, Aarush Dev!
                 </h1>
                 <p style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.92rem', margin: 0, maxWidth: '520px' }}>
                   Monitoring placement conversion pipeline, coding benchmarks, and technical mock interview readiness.
@@ -893,7 +894,12 @@ export default function PlacementDashboard() {
                         }}
                       >
                         <td style={{ padding: '12px 8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <img src={s.avatar} alt={s.name} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+                          <StudentAvatar
+                            src={s.avatar}
+                            name={s.name}
+                            id={s.id}
+                            size={32}
+                          />
                           <div>
                             <div style={{ fontWeight: 700 }}>{s.name}</div>
                             <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{s.id}</div>

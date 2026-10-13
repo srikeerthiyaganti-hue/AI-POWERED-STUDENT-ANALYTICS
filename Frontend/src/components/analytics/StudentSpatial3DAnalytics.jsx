@@ -430,7 +430,7 @@ export default function StudentSpatial3DAnalytics({
                 <div>Risk: <strong style={{ color: hoveredStudent.academicRisk === 'HIGH' ? '#EF4444' : '#10B981' }}>{hoveredStudent.academicRisk}</strong></div>
               </div>
               <div style={{ marginTop: '6px', fontSize: '0.72rem', color: '#1E6BFF' }}>
-                Mentor: {hoveredStudent.assignedMentor || 'Prof. Rajesh Kumar'}
+                Mentor: {hoveredStudent.assignedMentor || 'Prof. Vihaan Singh'}
               </div>
             </div>
           )}

@@ -21,7 +21,7 @@ def test_health():
 def test_auth_login_admin():
     response = client.post("/api/auth/login", json={
         "identifier": "admin@codebuffet.edu",
-        "password": "CodeBuffet@2026!",
+        "password": "AdminDemo#2026",
         "role": "admin"
     })
     assert response.status_code == 200
@@ -34,7 +34,7 @@ def test_auth_login_admin():
 def test_auth_login_student():
     response = client.post("/api/auth/login", json={
         "identifier": "aarav.sharma@codebuffet.edu",
-        "password": "Student@2026!",
+        "password": "StudentDemo#2026",
         "role": "student"
     })
     assert response.status_code == 200
@@ -46,8 +46,8 @@ def test_auth_login_student():
 
 def test_auth_login_by_roll_no():
     response = client.post("/api/auth/login", json={
-        "identifier": "STU-2024-042",
-        "password": "Student@2026!"
+        "identifier": "STU-2026-018",
+        "password": "StudentDemo#2026"
     })
     assert response.status_code == 200
     data = response.json()
@@ -67,7 +67,7 @@ def test_auth_role_restriction():
     # Student trying to sign into admin portal with student credentials
     response = client.post("/api/auth/login", json={
         "identifier": "aarav.sharma@codebuffet.edu",
-        "password": "Student@2026!",
+        "password": "StudentDemo#2026",
         "role": "admin"
     })
     assert response.status_code == 403
@@ -76,7 +76,7 @@ def test_auth_role_restriction():
 def _get_admin_headers():
     res = client.post("/api/auth/login", json={
         "identifier": "admin@codebuffet.edu",
-        "password": "CodeBuffet@2026!",
+        "password": "AdminDemo#2026",
         "role": "admin"
     })
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -85,7 +85,7 @@ def _get_admin_headers():
 def _get_student_headers():
     res = client.post("/api/auth/login", json={
         "identifier": "aarav.sharma@codebuffet.edu",
-        "password": "Student@2026!",
+        "password": "StudentDemo#2026",
         "role": "student"
     })
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -93,8 +93,8 @@ def _get_student_headers():
 
 def _get_mentor_headers():
     res = client.post("/api/auth/login", json={
-        "identifier": "rajesh.kumar@codebuffet.edu",
-        "password": "Mentor@2026!",
+        "identifier": "vihaan.singh@codebuffet.edu",
+        "password": "MentorDemo#2026",
         "role": "admin"
     })
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -102,8 +102,8 @@ def _get_mentor_headers():
 
 def _get_tpo_headers():
     res = client.post("/api/auth/login", json={
-        "identifier": "vikram.tpo@codebuffet.edu",
-        "password": "TPO@2026!",
+        "identifier": "aarush.dev@codebuffet.edu",
+        "password": "PlacementDemo#2026",
         "role": "admin"
     })
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -157,7 +157,7 @@ def test_institution_students_filter():
 
 
 def test_student_dashboard():
-    response = client.get("/api/student/dashboard?roll_no=STU-2024-042", headers=_get_student_headers())
+    response = client.get("/api/student/dashboard?roll_no=STU-2026-018", headers=_get_student_headers())
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Aarav Sharma"
@@ -238,13 +238,13 @@ def test_create_student_and_assign_mentor():
         "cgpa": 8.1,
         "backlogs": 0,
         "overall_attendance_pct": 91.0,
-        "assigned_mentor": "Prof. Rajesh Kumar"
+        "assigned_mentor": "Prof. Vihaan Singh"
     }, headers=_get_admin_headers())
     assert create_res.status_code == 200
     data = create_res.json()
     assert data["success"] is True
     assert data["student"]["roll_no"] == test_roll
-    assert data["student"]["assignedMentor"] == "Prof. Rajesh Kumar"
+    assert data["student"]["assignedMentor"] == "Prof. Vihaan Singh"
 
     # 2. Verify student appears in administrator's student list
     list_res = client.get(f"/api/institution/students?search={test_roll}", headers=_get_admin_headers())
@@ -252,7 +252,7 @@ def test_create_student_and_assign_mentor():
     students_list = list_res.json()
     assert len(students_list) > 0
     assert students_list[0]["id"] == test_roll
-    assert students_list[0]["assignedMentor"] == "Prof. Rajesh Kumar"
+    assert students_list[0]["assignedMentor"] == "Prof. Vihaan Singh"
 
     # 3. Test reassigning mentor persistently
     reassign_res = client.post("/api/institution/students/assign-mentor", json={
@@ -297,12 +297,12 @@ def test_institution_mentors_endpoint():
     data = res.json()
     assert len(data) >= 3
     mentor_names = [m["name"] for m in data]
-    assert "Prof. Rajesh Kumar" in mentor_names
+    assert "Prof. Vihaan Singh" in mentor_names
     assert "Dr. Sunita Sharma" in mentor_names
     assert "Prof. K. Murthy" in mentor_names
     # Verify assigned students count is reported
-    rajesh = next(m for m in data if m["name"] == "Prof. Rajesh Kumar")
-    assert rajesh["assigned_students_count"] >= 3
+    vihaan = next(m for m in data if m["name"] == "Prof. Vihaan Singh")
+    assert vihaan["assigned_students_count"] >= 3
 
 
 def test_simulate_cohort_endpoint():
@@ -340,7 +340,7 @@ def test_students_export_csv():
     assert "Roll Number" in content
     assert "Record Type" in content
     assert "Source Provenance" in content
-    assert "STU-2024-042" in content
+    assert "STU-2026-018" in content
 
 
 def test_dashboard_50_students_restriction():
@@ -376,28 +376,28 @@ def test_dashboard_50_students_restriction():
 
 def test_mentor_dashboard_mentees_and_interventions():
     # 1. Mentor query retrieves genuine assigned CSE mentees without exposing unrelated cohort benchmark rows
-    res = client.get("/api/institution/students?mentor=Rajesh%20Kumar", headers=_get_mentor_headers())
+    res = client.get("/api/institution/students?mentor=Vihaan%20Singh", headers=_get_mentor_headers())
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
-    assert len(data) == 3, f"Expected 3 genuine assigned mentees for Rajesh Kumar, got {len(data)}"
+    assert len(data) == 3, f"Expected 3 genuine assigned mentees for Vihaan Singh, got {len(data)}"
     roll_numbers = [s["roll_no"] for s in data]
-    assert "STU-2024-042" in roll_numbers  # Aarav Sharma
+    assert "STU-2026-018" in roll_numbers  # Aarav Sharma
     assert "STU-2024-001" in roll_numbers  # Rajesh Kumar
     assert "STU-2024-112" in roll_numbers  # Ananya Verma
 
     # 2. Querying with honorific title also succeeds
-    res_title = client.get("/api/institution/students?mentor=Prof.%20Rajesh%20Kumar", headers=_get_mentor_headers())
+    res_title = client.get("/api/institution/students?mentor=Prof.%20Vihaan%20Singh", headers=_get_mentor_headers())
     assert res_title.status_code == 200
     assert len(res_title.json()) == 3
 
     # 3. Interventions endpoint returns the mentor's genuine active interventions
-    interv_res = client.get("/api/institution/interventions?mentor=Rajesh%20Kumar", headers=_get_mentor_headers())
+    interv_res = client.get("/api/institution/interventions?mentor=Vihaan%20Singh", headers=_get_mentor_headers())
     assert interv_res.status_code == 200
     intervs = interv_res.json()
     assert len(intervs) >= 2
     student_rolls = [i["student_roll_no"] for i in intervs]
-    assert "STU-2024-042" in student_rolls
+    assert "STU-2026-018" in student_rolls
     assert "STU-2024-001" in student_rolls
 
 

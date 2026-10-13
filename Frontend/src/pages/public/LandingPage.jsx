@@ -56,9 +56,9 @@ export default function LandingPage() {
           minHeight: '75vh',
           display: 'flex',
           alignItems: 'center',
-          backgroundImage: `linear-gradient(to right, rgba(6, 26, 51, 0.95) 30%, rgba(6, 26, 51, 0.75) 65%, rgba(6, 26, 51, 0.90) 100%), url('/assets/images/codebuffet_campus_entrance.jpg')`,
+          backgroundImage: `linear-gradient(to right, rgba(6, 26, 51, 0.95) 30%, rgba(6, 26, 51, 0.75) 65%, rgba(6, 26, 51, 0.90) 100%), url('/images/landing-bg.png')`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center 40%',
+          backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
           padding: '3.5rem 1.5rem',
           overflow: 'hidden',
@@ -204,7 +204,7 @@ export default function LandingPage() {
                 zIndex: 5,
               }}
             >
-              7-DOMAIN INTELLIGENCE
+              STUDENT SUCCESS INTELLIGENCE NETWORK
             </div>
 
             <DomainConstellation />
@@ -217,7 +217,7 @@ export default function LandingPage() {
                 color: 'rgba(255, 255, 255, 0.6)',
               }}
             >
-              Hover over domain nodes to view indicator weight contribution
+              Hover over intelligence nodes to explore AI-driven predictive insights
             </div>
           </div>
         </div>
@@ -293,7 +293,7 @@ export default function LandingPage() {
               {
                 key: 'mentor',
                 roleTitle: 'Faculty Mentor',
-                name: 'Prof. Rajesh Kumar',
+                name: 'Prof. Vihaan Singh',
                 tag: 'Computer Science & Engg.',
                 features: 'Mentee directory, early academic warning alerts, 1-on-1 intervention logging & attendance tracking.',
                 btnText: 'Launch Mentor View →',
@@ -302,7 +302,7 @@ export default function LandingPage() {
               {
                 key: 'tpo',
                 roleTitle: 'Placement Officer (TPO)',
-                name: 'Vikram Malhotra',
+                name: 'Aarush Dev',
                 tag: 'Corporate Relations',
                 features: '2x2 Segmentation matrix, coding benchmarks, company eligibility filters & CSV exports.',
                 btnText: 'Launch TPO View →',
