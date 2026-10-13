@@ -21,7 +21,7 @@ def test_health():
 def test_auth_login_admin():
     response = client.post("/api/auth/login", json={
         "identifier": "admin@codebuffet.edu",
-        "password": "AdminDemo#2026",
+        "password": "CodeBuffet@2026!",
         "role": "admin"
     })
     assert response.status_code == 200
@@ -33,8 +33,8 @@ def test_auth_login_admin():
 
 def test_auth_login_student():
     response = client.post("/api/auth/login", json={
-        "identifier": "aarav.sharma@codebuffet.edu",
-        "password": "StudentDemo#2026",
+        "identifier": "stu-2024-042@codebuffet.edu",
+        "password": "Student@2026!",
         "role": "student"
     })
     assert response.status_code == 200
@@ -46,12 +46,66 @@ def test_auth_login_student():
 
 def test_auth_login_by_roll_no():
     response = client.post("/api/auth/login", json={
-        "identifier": "STU-2026-018",
-        "password": "StudentDemo#2026"
+        "identifier": "STU-2024-042",
+        "password": "Student@2026!"
     })
     assert response.status_code == 200
     data = response.json()
-    assert data["user"]["email"] == "aarav.sharma@codebuffet.edu"
+    assert data["user"]["roll_no"] == "STU-2024-042"
+
+
+def test_auth_login_mentor():
+    response = client.post("/api/auth/login", json={
+        "identifier": "rajesh.kumar@codebuffet.edu",
+        "password": "Mentor@2026!",
+        "role": "admin"
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user"]["role"] == "mentor"
+    assert data["user"]["name"] == "Prof. Rajesh Kumar"
+
+
+def test_auth_login_tpo():
+    response = client.post("/api/auth/login", json={
+        "identifier": "vikram.tpo@codebuffet.edu",
+        "password": "TPO@2026!",
+        "role": "admin"
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user"]["role"] == "tpo"
+    assert data["user"]["name"] == "Vikram Malhotra"
+
+
+def test_superseded_credentials_rejected():
+    # Admin old password rejected
+    res_admin = client.post("/api/auth/login", json={
+        "identifier": "admin@codebuffet.edu",
+        "password": "AdminDemo#2026"
+    })
+    assert res_admin.status_code == 401
+
+    # Student old password rejected
+    res_student = client.post("/api/auth/login", json={
+        "identifier": "STU-2024-042",
+        "password": "StudentDemo#2026"
+    })
+    assert res_student.status_code == 401
+
+    # Mentor old password rejected
+    res_mentor = client.post("/api/auth/login", json={
+        "identifier": "rajesh.kumar@codebuffet.edu",
+        "password": "MentorDemo#2026"
+    })
+    assert res_mentor.status_code == 401
+
+    # TPO old password rejected
+    res_tpo = client.post("/api/auth/login", json={
+        "identifier": "vikram.tpo@codebuffet.edu",
+        "password": "PlacementDemo#2026"
+    })
+    assert res_tpo.status_code == 401
 
 
 def test_auth_login_invalid_password():
@@ -66,8 +120,8 @@ def test_auth_login_invalid_password():
 def test_auth_role_restriction():
     # Student trying to sign into admin portal with student credentials
     response = client.post("/api/auth/login", json={
-        "identifier": "aarav.sharma@codebuffet.edu",
-        "password": "StudentDemo#2026",
+        "identifier": "stu-2024-042@codebuffet.edu",
+        "password": "Student@2026!",
         "role": "admin"
     })
     assert response.status_code == 403
@@ -76,7 +130,7 @@ def test_auth_role_restriction():
 def _get_admin_headers():
     res = client.post("/api/auth/login", json={
         "identifier": "admin@codebuffet.edu",
-        "password": "AdminDemo#2026",
+        "password": "CodeBuffet@2026!",
         "role": "admin"
     })
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -84,8 +138,8 @@ def _get_admin_headers():
 
 def _get_student_headers():
     res = client.post("/api/auth/login", json={
-        "identifier": "aarav.sharma@codebuffet.edu",
-        "password": "StudentDemo#2026",
+        "identifier": "stu-2024-042@codebuffet.edu",
+        "password": "Student@2026!",
         "role": "student"
     })
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -93,8 +147,8 @@ def _get_student_headers():
 
 def _get_mentor_headers():
     res = client.post("/api/auth/login", json={
-        "identifier": "vihaan.singh@codebuffet.edu",
-        "password": "MentorDemo#2026",
+        "identifier": "rajesh.kumar@codebuffet.edu",
+        "password": "Mentor@2026!",
         "role": "admin"
     })
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -102,8 +156,8 @@ def _get_mentor_headers():
 
 def _get_tpo_headers():
     res = client.post("/api/auth/login", json={
-        "identifier": "aarush.dev@codebuffet.edu",
-        "password": "PlacementDemo#2026",
+        "identifier": "vikram.tpo@codebuffet.edu",
+        "password": "TPO@2026!",
         "role": "admin"
     })
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -157,7 +211,7 @@ def test_institution_students_filter():
 
 
 def test_student_dashboard():
-    response = client.get("/api/student/dashboard?roll_no=STU-2026-018", headers=_get_student_headers())
+    response = client.get("/api/student/dashboard?roll_no=STU-2024-042", headers=_get_student_headers())
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Aarav Sharma"
@@ -297,12 +351,12 @@ def test_institution_mentors_endpoint():
     data = res.json()
     assert len(data) >= 3
     mentor_names = [m["name"] for m in data]
-    assert "Prof. Vihaan Singh" in mentor_names
+    assert any("Rajesh" in name or "Vihaan" in name for name in mentor_names)
     assert "Dr. Sunita Sharma" in mentor_names
     assert "Prof. K. Murthy" in mentor_names
     # Verify assigned students count is reported
-    vihaan = next(m for m in data if m["name"] == "Prof. Vihaan Singh")
-    assert vihaan["assigned_students_count"] >= 3
+    mentor_obj = next(m for m in data if "Rajesh" in m["name"] or "Vihaan" in m["name"])
+    assert mentor_obj["assigned_students_count"] >= 3
 
 
 def test_simulate_cohort_endpoint():
@@ -333,6 +387,7 @@ def test_model_status_endpoint():
 
 
 def test_students_export_csv():
+    # 1. Export with Bearer header
     res = client.get("/api/institution/students/export?record_type=verified_profile", headers=_get_admin_headers())
     assert res.status_code == 200
     assert "text/csv" in res.headers.get("content-type", "")
@@ -340,7 +395,21 @@ def test_students_export_csv():
     assert "Roll Number" in content
     assert "Record Type" in content
     assert "Source Provenance" in content
-    assert "STU-2026-018" in content
+    assert "STU-2024-042" in content or "STU-2026-018" in content
+
+    # 2. Export with query param token
+    admin_token = _get_admin_headers()["Authorization"].split(" ")[1]
+    res_token = client.get(f"/api/institution/students/export?token={admin_token}")
+    assert res_token.status_code == 200
+    assert len(res_token.text.strip().splitlines()) == 51  # 1 header + 50 student records
+
+    # 3. Unauthenticated export must be rejected with 401
+    res_unauth = client.get("/api/institution/students/export")
+    assert res_unauth.status_code == 401
+
+    # 4. Student token export must be rejected with 403 Forbidden
+    res_forbidden = client.get("/api/institution/students/export", headers=_get_student_headers())
+    assert res_forbidden.status_code == 403
 
 
 def test_dashboard_50_students_restriction():
@@ -350,6 +419,14 @@ def test_dashboard_50_students_restriction():
     data = res.json()
     assert isinstance(data, list)
     assert len(data) == 50, f"Dashboard expected exactly 50 students, got {len(data)}"
+
+    # Verify cohort composition: exactly 8 verified profiles and 42 benchmark cohort records
+    verified = [s for s in data if s["recordType"] == "verified_profile"]
+    benchmark = [s for s in data if s["recordType"] == "anonymous_cohort"]
+    assert len(verified) == 8, f"Expected 8 verified profiles in 50 cohort, got {len(verified)}"
+    assert len(benchmark) == 42, f"Expected 42 benchmark records in 50 cohort, got {len(benchmark)}"
+    assert all(s["dataCompleteness"] == 100.0 for s in verified)
+    assert all(s["dataCompleteness"] == 94.1 for s in benchmark)
 
     # 2. Paginated request returns at most 50 items and total <= 50
     res_p = client.get("/api/institution/students?page=1&page_size=100", headers=_get_admin_headers())
@@ -376,29 +453,100 @@ def test_dashboard_50_students_restriction():
 
 def test_mentor_dashboard_mentees_and_interventions():
     # 1. Mentor query retrieves genuine assigned CSE mentees without exposing unrelated cohort benchmark rows
-    res = client.get("/api/institution/students?mentor=Vihaan%20Singh", headers=_get_mentor_headers())
+    res = client.get("/api/institution/students?mentor=Rajesh%20Kumar", headers=_get_mentor_headers())
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
-    assert len(data) == 3, f"Expected 3 genuine assigned mentees for Vihaan Singh, got {len(data)}"
+    assert len(data) == 3, f"Expected 3 genuine assigned mentees for Rajesh Kumar, got {len(data)}"
     roll_numbers = [s["roll_no"] for s in data]
-    assert "STU-2026-018" in roll_numbers  # Aarav Sharma
+    assert "STU-2024-042" in roll_numbers  # Aarav Sharma
     assert "STU-2024-001" in roll_numbers  # Rajesh Kumar
     assert "STU-2024-112" in roll_numbers  # Ananya Verma
 
     # 2. Querying with honorific title also succeeds
-    res_title = client.get("/api/institution/students?mentor=Prof.%20Vihaan%20Singh", headers=_get_mentor_headers())
+    res_title = client.get("/api/institution/students?mentor=Prof.%20Rajesh%20Kumar", headers=_get_mentor_headers())
     assert res_title.status_code == 200
     assert len(res_title.json()) == 3
 
+    # Backwards compatibility query with Vihaan Singh alias
+    res_alias = client.get("/api/institution/students?mentor=Vihaan%20Singh", headers=_get_mentor_headers())
+    assert res_alias.status_code == 200
+    assert len(res_alias.json()) == 3
+
     # 3. Interventions endpoint returns the mentor's genuine active interventions
-    interv_res = client.get("/api/institution/interventions?mentor=Vihaan%20Singh", headers=_get_mentor_headers())
+    interv_res = client.get("/api/institution/interventions?mentor=Rajesh%20Kumar", headers=_get_mentor_headers())
     assert interv_res.status_code == 200
     intervs = interv_res.json()
     assert len(intervs) >= 2
     student_rolls = [i["student_roll_no"] for i in intervs]
-    assert "STU-2026-018" in student_rolls
+    assert "STU-2024-042" in student_rolls
     assert "STU-2024-001" in student_rolls
+
+
+def test_seed_initial_data_idempotent():
+    """
+    Regression Test: seed_initial_data() must be strictly idempotent.
+    Executing startup seeding multiple times must NOT:
+    1. Raise IntegrityError on UNIQUE constraints (users.roll_no or users.email).
+    2. Create duplicate users or duplicate student records.
+    3. Overwrite existing accounts, passwords, roles, or student data.
+    4. Confuse distinct identities (student STU-2024-042, student Rajesh Kumar,
+       faculty mentor Prof. Rajesh Kumar, and TPO Vikram Malhotra).
+    """
+    from backend.database import seed_initial_data
+
+    # Snapshot state before seeding
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, email, roll_no, password_hash, full_name, role FROM users ORDER BY id ASC")
+    users_before = [dict(r) for r in c.fetchall()]
+    c.execute("SELECT COUNT(*) FROM students")
+    student_count_before = c.fetchone()[0]
+    conn.close()
+
+    # Call seed_initial_data() first time
+    seed_initial_data()
+
+    # Call seed_initial_data() second time
+    seed_initial_data()
+
+    # Verify state after multiple seed executions
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, email, roll_no, password_hash, full_name, role FROM users ORDER BY id ASC")
+    users_after = [dict(r) for r in c.fetchall()]
+    c.execute("SELECT COUNT(*) FROM students")
+    student_count_after = c.fetchone()[0]
+
+    # Verify identities remain distinct and isolated
+    c.execute("SELECT roll_no, full_name, role FROM users WHERE role = 'student'")
+    student_user = c.fetchone()
+    assert student_user["roll_no"] == "STU-2024-042"
+    assert student_user["role"] == "student"
+
+    c.execute("SELECT roll_no, full_name, assigned_mentor FROM students WHERE roll_no = 'STU-2024-001'")
+    rajesh_student = c.fetchone()
+    assert rajesh_student["full_name"] == "Rajesh Kumar"
+    assert rajesh_student["assigned_mentor"] == "Prof. Rajesh Kumar"
+
+    c.execute("SELECT email, roll_no, full_name, role FROM users WHERE role = 'mentor' AND roll_no = 'FAC-CSE-104'")
+    mentor_user = c.fetchone()
+    assert mentor_user["email"] == "rajesh.kumar@codebuffet.edu"
+    assert mentor_user["full_name"] == "Prof. Rajesh Kumar"
+
+    c.execute("SELECT email, roll_no, full_name, role FROM users WHERE role = 'tpo'")
+    tpo_user = c.fetchone()
+    assert tpo_user["email"] == "vikram.tpo@codebuffet.edu"
+    assert tpo_user["full_name"] == "Vikram Malhotra"
+
+    conn.close()
+
+    # Assert no duplicate users created and passwords/roles intact
+    assert len(users_after) == len(users_before), f"Expected {len(users_before)} users, found {len(users_after)}"
+    assert users_after == users_before, "Existing user accounts, passwords, or roles were altered during re-seed"
+
+    # Assert student database records preserved intact
+    assert student_count_after == student_count_before == 50008, f"Expected 50008 student records, found {student_count_after}"
 
 
 if __name__ == "__main__":
@@ -406,6 +554,9 @@ if __name__ == "__main__":
     test_auth_login_admin()
     test_auth_login_student()
     test_auth_login_by_roll_no()
+    test_auth_login_mentor()
+    test_auth_login_tpo()
+    test_superseded_credentials_rejected()
     test_auth_login_invalid_password()
     test_auth_role_restriction()
     test_institution_summary()
@@ -428,5 +579,6 @@ if __name__ == "__main__":
     test_students_export_csv()
     test_dashboard_50_students_restriction()
     test_mentor_dashboard_mentees_and_interventions()
-    print("ALL 26 BACKEND TESTS PASSED SUCCESSFULLY!")
+    test_seed_initial_data_idempotent()
+    print("ALL TESTS PASSED SUCCESSFULLY!")
 

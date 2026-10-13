@@ -126,8 +126,45 @@ export const api = {
     if (options.department) params.append('department', options.department);
     if (options.mentor) params.append('mentor', options.mentor);
     if (options.recordType) params.append('record_type', options.recordType);
+    const token = sessionStorage.getItem('codebuffet_access_token');
+    if (token) params.append('token', token);
     const qs = params.toString() ? `?${params.toString()}` : '';
     return `${API_BASE}/api/institution/students/export${qs}`;
+  },
+
+  downloadStudentsExportCSV: async (options = {}) => {
+    const params = new URLSearchParams();
+    if (options.search) params.append('search', options.search);
+    if (options.riskBand) params.append('risk_band', options.riskBand);
+    if (options.department) params.append('department', options.department);
+    if (options.mentor) params.append('mentor', options.mentor);
+    if (options.recordType) params.append('record_type', options.recordType);
+    const token = sessionStorage.getItem('codebuffet_access_token');
+    if (token) params.append('token', token);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const url = `${API_BASE}/api/institution/students/export${qs}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(err.detail || `Export failed with status ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `codebuffet_cohort_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(downloadUrl);
   },
 
   getInterventions: (mentor = '', category = '') => {

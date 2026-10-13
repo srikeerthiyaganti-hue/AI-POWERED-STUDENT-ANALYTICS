@@ -293,7 +293,7 @@ export default function LandingPage() {
               {
                 key: 'mentor',
                 roleTitle: 'Faculty Mentor',
-                name: 'Prof. Vihaan Singh',
+                name: 'Prof. Rajesh Kumar',
                 tag: 'Computer Science & Engg.',
                 features: 'Mentee directory, early academic warning alerts, 1-on-1 intervention logging & attendance tracking.',
                 btnText: 'Launch Mentor View →',
@@ -302,7 +302,7 @@ export default function LandingPage() {
               {
                 key: 'tpo',
                 roleTitle: 'Placement Officer (TPO)',
-                name: 'Aarush Dev',
+                name: 'Vikram Malhotra',
                 tag: 'Corporate Relations',
                 features: '2x2 Segmentation matrix, coding benchmarks, company eligibility filters & CSV exports.',
                 btnText: 'Launch TPO View →',

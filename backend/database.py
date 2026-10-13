@@ -143,10 +143,10 @@ def seed_initial_data():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    admin_pass = os.getenv("DEFAULT_ADMIN_PASSWORD", "AdminDemo#2026")
-    student_pass = os.getenv("DEFAULT_STUDENT_PASSWORD", "StudentDemo#2026")
-    mentor_pass = os.getenv("DEFAULT_MENTOR_PASSWORD", "MentorDemo#2026")
-    tpo_pass = os.getenv("DEFAULT_TPO_PASSWORD", "PlacementDemo#2026")
+    admin_pass = os.getenv("DEFAULT_ADMIN_PASSWORD", "CodeBuffet@2026!")
+    student_pass = os.getenv("DEFAULT_STUDENT_PASSWORD", "Student@2026!")
+    mentor_pass = os.getenv("DEFAULT_MENTOR_PASSWORD", "Mentor@2026!")
+    tpo_pass = os.getenv("DEFAULT_TPO_PASSWORD", "TPO@2026!")
 
     # 1. Seed Accounts (Admin, 3 Faculty Mentors, TPO Director, Verified Student)
     users_to_seed = [
@@ -161,10 +161,10 @@ def seed_initial_data():
             "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
         ),
         (
-            "vihaan.singh@codebuffet.edu",
+            os.getenv("DEFAULT_MENTOR_EMAIL", "rajesh.kumar@codebuffet.edu"),
             "FAC-CSE-104",
             hash_password(mentor_pass),
-            "Prof. Vihaan Singh",
+            "Prof. Rajesh Kumar",
             "mentor",
             "Senior Faculty Mentor (CSE)",
             "Computer Science & Engineering",
@@ -191,18 +191,18 @@ def seed_initial_data():
             "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80"
         ),
         (
-            "aarush.dev@codebuffet.edu",
+            os.getenv("DEFAULT_TPO_EMAIL", "vikram.tpo@codebuffet.edu"),
             "TPO-OFFICER-02",
             hash_password(tpo_pass),
-            "Aarush Dev",
+            "Vikram Malhotra",
             "tpo",
             "Placement Director",
             "Career & Corporate Relations",
             "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80"
         ),
         (
-            os.getenv("DEFAULT_STUDENT_EMAIL", "aarav.sharma@codebuffet.edu"),
-            "STU-2026-018",
+            os.getenv("DEFAULT_STUDENT_EMAIL", "stu-2024-042@codebuffet.edu"),
+            "STU-2024-042",
             hash_password(student_pass),
             "Aarav Sharma",
             "student",
@@ -213,20 +213,37 @@ def seed_initial_data():
     ]
 
     for u in users_to_seed:
-        cursor.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", (u[0],))
-        if not cursor.fetchone():
-            cursor.execute("""
-            INSERT INTO users (email, roll_no, password_hash, full_name, role, role_label, department, avatar_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, u)
+        seed_email = u[0]
+        seed_roll_no = u[1]
+
+        # Check existing user by both unique constraints: email and roll_no
+        existing_by_email = None
+        if seed_email:
+            cursor.execute("SELECT id, email, roll_no, role FROM users WHERE LOWER(email) = LOWER(?)", (seed_email,))
+            existing_by_email = cursor.fetchone()
+
+        existing_by_roll = None
+        if seed_roll_no:
+            cursor.execute("SELECT id, email, roll_no, role FROM users WHERE roll_no IS NOT NULL AND LOWER(roll_no) = LOWER(?)", (seed_roll_no,))
+            existing_by_roll = cursor.fetchone()
+
+        # If user already exists by either unique key, skip insertion.
+        # This guarantees idempotency on startup without overwriting passwords, roles, or existing records.
+        if existing_by_email or existing_by_roll:
+            continue
+
+        cursor.execute("""
+        INSERT INTO users (email, roll_no, password_hash, full_name, role, role_label, department, avatar_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, u)
 
     # 2. Seed Student Cohort (Verified Identifiable Profiles)
     students_to_seed = [
-        ("STU-2026-018", 4, "Aarav Sharma", "Computer Science & Engineering", "3rd Year", 6, 8.42, 0, 88.5, 8.2, 8.5, 78.0, 7.5, 89.0, 85.4, 0.05, "LOW", 0.12, "LOW", "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&auto=format&fit=crop&q=80", "Prof. Vihaan Singh", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
-        ("STU-2024-001", None, "Rajesh Kumar", "Computer Science & Engineering", "3rd Year", 6, 6.10, 2, 64.0, 4.0, 3.8, 48.0, 5.2, 58.0, 51.4, 0.72, "HIGH", 0.78, "HIGH", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80", "Prof. Vihaan Singh", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
+        ("STU-2024-042", 4, "Aarav Sharma", "Computer Science & Engineering", "3rd Year", 6, 8.42, 0, 88.5, 8.2, 8.5, 78.0, 7.5, 89.0, 85.4, 0.05, "LOW", 0.12, "LOW", "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&auto=format&fit=crop&q=80", "Prof. Rajesh Kumar", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
+        ("STU-2024-001", None, "Rajesh Kumar", "Computer Science & Engineering", "3rd Year", 6, 6.10, 2, 64.0, 4.0, 3.8, 48.0, 5.2, 58.0, 51.4, 0.72, "HIGH", 0.78, "HIGH", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80", "Prof. Rajesh Kumar", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
         ("STU-2024-019", None, "Sneha Reddy", "Electronics & Communication", "2nd Year", 4, 7.40, 0, 68.0, 6.5, 6.0, 65.0, 6.8, 72.0, 69.2, 0.38, "MEDIUM", 0.32, "MEDIUM", "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80", "Dr. Sunita Sharma", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
         ("STU-2024-088", None, "Vamsi Krishna", "Information Technology", "4th Year", 8, 8.90, 0, 92.0, 9.2, 9.0, 88.0, 8.5, 94.0, 91.8, 0.05, "LOW", 0.08, "LOW", "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80", "Dr. Sunita Sharma", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
-        ("STU-2024-112", None, "Ananya Verma", "Computer Science & Engineering", "3rd Year", 6, 9.15, 0, 95.0, 9.5, 9.4, 92.0, 9.0, 96.0, 94.5, 0.05, "LOW", 0.06, "LOW", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80", "Prof. Vihaan Singh", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
+        ("STU-2024-112", None, "Ananya Verma", "Computer Science & Engineering", "3rd Year", 6, 9.15, 0, 95.0, 9.5, 9.4, 92.0, 9.0, 96.0, 94.5, 0.05, "LOW", 0.06, "LOW", "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80", "Prof. Rajesh Kumar", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
         ("STU-2024-054", None, "Rohan Das", "Mechanical Engineering", "3rd Year", 6, 5.80, 3, 59.0, 3.5, 3.2, 42.0, 4.8, 51.0, 46.2, 0.85, "HIGH", 0.89, "HIGH", "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80", "Prof. K. Murthy", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
         ("STU-2024-067", None, "Pooja Hegde", "Electrical & Electronics", "2nd Year", 4, 7.85, 0, 82.0, 7.0, 6.8, 70.0, 7.2, 80.0, 77.4, 0.15, "LOW", 0.22, "LOW", "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80", "Dr. Sunita Sharma", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0),
         ("STU-2024-093", None, "Aditya Rao", "Civil Engineering", "4th Year", 8, 6.90, 1, 71.0, 5.8, 5.5, 60.0, 6.0, 67.0, 64.8, 0.42, "MEDIUM", 0.48, "MEDIUM", "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=100&auto=format&fit=crop&q=80", "Prof. K. Murthy", "verified_profile", "Official University Registrar (Enrolled B.Tech Cohort)", 100.0)
@@ -253,9 +270,9 @@ def seed_initial_data():
 
     # 3. Seed Mentoring Interventions (Distributed across all 3 mentors)
     interventions_to_seed = [
-        ("STU-2026-018", "Aarav Sharma", "Computer Science & Engineering", "Complete LeetCode Top 50 DSA practice set", "SKILL_GAP", "Prof. Vihaan Singh", "OPEN", "Oct 15, 2026"),
-        ("STU-2026-018", "Aarav Sharma", "Computer Science & Engineering", "Submit Microservices Architecture case study on LMS", "ACADEMIC", "Prof. Vihaan Singh", "OPEN", "Oct 22, 2026"),
-        ("STU-2024-001", "Rajesh Kumar", "Computer Science & Engineering", "Urgent Attendance Counseling & Arrears Remedial", "ATTENDANCE", "Prof. Vihaan Singh", "OPEN", "Oct 12, 2026"),
+        ("STU-2024-042", "Aarav Sharma", "Computer Science & Engineering", "Complete LeetCode Top 50 DSA practice set", "SKILL_GAP", "Prof. Rajesh Kumar", "OPEN", "Oct 15, 2026"),
+        ("STU-2024-042", "Aarav Sharma", "Computer Science & Engineering", "Submit Microservices Architecture case study on LMS", "ACADEMIC", "Prof. Rajesh Kumar", "OPEN", "Oct 22, 2026"),
+        ("STU-2024-001", "Rajesh Kumar", "Computer Science & Engineering", "Urgent Attendance Counseling & Arrears Remedial", "ATTENDANCE", "Prof. Rajesh Kumar", "OPEN", "Oct 12, 2026"),
         ("STU-2024-019", "Sneha Reddy", "Electronics & Communication", "Analog Circuit Design Simulation & Viva Practice", "ACADEMIC", "Dr. Sunita Sharma", "OPEN", "Oct 18, 2026"),
         ("STU-2024-067", "Pooja Hegde", "Electrical & Electronics", "Power Systems Assignment & Attendance Catchup", "ATTENDANCE", "Dr. Sunita Sharma", "OPEN", "Oct 20, 2026"),
         ("STU-2024-054", "Rohan Das", "Mechanical Engineering", "Special Faculty Mentorship for Core Arrear Subjects", "ACADEMIC", "Prof. K. Murthy", "OPEN", "Oct 14, 2026"),

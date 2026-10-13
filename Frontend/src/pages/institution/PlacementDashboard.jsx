@@ -119,7 +119,7 @@ export default function PlacementDashboard() {
         department: interviewCandidate.department,
         title: `Corporate Mock Technical Interview (DSA & System Design)`,
         category: 'PLACEMENT',
-        assigned_mentor: 'Aarush Dev (TPO)',
+        assigned_mentor: 'Vikram Malhotra (TPO)',
         due_date: interviewDate,
       });
       setActionNotice(`Mock interview scheduled for ${interviewCandidate.name} on ${interviewDate}!`);
@@ -204,7 +204,7 @@ export default function PlacementDashboard() {
             <span>{isLiveApi ? 'FASTAPI TPO TELEMETRY ACTIVE' : 'PLACEMENT OFFICER PORTAL'}</span>
           </span>
           <span>
-            Logged in as: <strong>{currentUser?.name || 'Aarush Dev'}</strong> (Placement Director)
+            Logged in as: <strong>{currentUser?.name || 'Vikram Malhotra'}</strong> (Placement Director)
           </span>
         </div>
 
@@ -470,11 +470,11 @@ export default function PlacementDashboard() {
                     border: '2px solid #DDD6FE',
                   }}
                 >
-                  AD
+                  VM
                 </div>
                 <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
-                    Aarush Dev
+                    {currentUser?.name || 'Vikram Malhotra'}
                   </div>
                   <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Placement Director</div>
                 </div>
@@ -526,7 +526,7 @@ export default function PlacementDashboard() {
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  Welcome back, Aarush Dev!
+                  Welcome back, {currentUser?.name || 'Vikram Malhotra'}!
                 </h1>
                 <p style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.92rem', margin: 0, maxWidth: '520px' }}>
                   Monitoring placement conversion pipeline, coding benchmarks, and technical mock interview readiness.

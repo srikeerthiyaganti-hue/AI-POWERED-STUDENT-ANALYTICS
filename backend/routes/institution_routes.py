@@ -14,9 +14,10 @@ import hashlib
 from typing import Optional, List
 import pandas as pd
 from pydantic import BaseModel
-from fastapi import APIRouter, Query, HTTPException, Depends, status, Response
+from fastapi import APIRouter, Query, HTTPException, Depends, status, Response, Security
+from fastapi.security import HTTPAuthorizationCredentials
 from backend.database import get_db_connection
-from backend.auth import get_current_user, require_roles
+from backend.auth import get_current_user, require_roles, decode_access_token, security
 from ml_service import calculate_student_success_score
 
 router = APIRouter(prefix="/api/institution", tags=["Institution Analytics"])
@@ -66,7 +67,7 @@ class StudentCreateRequest(BaseModel):
     aptitude_score: float = 75.0
     communication_skills: float = 7.5
     lms_assignment_completion_pct: float = 80.0
-    assigned_mentor: Optional[str] = "Prof. Vihaan Singh"
+    assigned_mentor: Optional[str] = "Prof. Rajesh Kumar"
     avatar_url: Optional[str] = None
 
 
@@ -333,15 +334,25 @@ async def get_students(
         # by the arbitrary 50 IDs of the main executive campus dashboard overview.
         base_query = "FROM students WHERE 1=1"
         m = f"%{mentor.strip().lower()}%"
-        base_query += " AND (LOWER(assigned_mentor) LIKE ? OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ?))"
-        params.extend([m, m])
-        # Mentor dashboard: default to genuine enrolled student profiles unless specifically requested otherwise
-        if not record_type:
-            base_query += " AND (record_type = 'verified_profile' OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ?))"
-            params.append(m)
-        elif record_type.strip().lower() != "all":
-            base_query += " AND record_type = ?"
-            params.append(record_type.strip().lower())
+        if "vihaan" in mentor.lower() or "rajesh" in mentor.lower():
+            base_query += " AND (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ? OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?))"
+            params.extend(["%rajesh%", "%vihaan%", "%rajesh%", "%vihaan%"])
+            if not record_type:
+                base_query += " AND (record_type = 'verified_profile' OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?))"
+                params.extend(["%rajesh%", "%vihaan%"])
+            elif record_type.strip().lower() != "all":
+                base_query += " AND record_type = ?"
+                params.append(record_type.strip().lower())
+        else:
+            base_query += " AND (LOWER(assigned_mentor) LIKE ? OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ?))"
+            params.extend([m, m])
+            # Mentor dashboard: default to genuine enrolled student profiles unless specifically requested otherwise
+            if not record_type:
+                base_query += " AND (record_type = 'verified_profile' OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ?))"
+                params.append(m)
+            elif record_type.strip().lower() != "all":
+                base_query += " AND record_type = ?"
+                params.append(record_type.strip().lower())
 
     if search:
         s = f"%{search.strip().lower()}%"
@@ -495,7 +506,7 @@ async def get_students(
             "placementRisk": r["placement_risk_band"],
             "placementRiskProb": r["placement_risk_prob"],
             "topRiskFactor": _compute_risk_factor(r),
-            "assignedMentor": (r["assigned_mentor"] if "assigned_mentor" in r.keys() and r["assigned_mentor"] else "Prof. Vihaan Singh"),
+            "assignedMentor": (r["assigned_mentor"] if "assigned_mentor" in r.keys() and r["assigned_mentor"] else "Prof. Rajesh Kumar"),
             "avatar": r["avatar_url"],
             "codingSkills": r["coding_skills"],
             "dsaScore": r["dsa_score"],
@@ -535,12 +546,35 @@ async def export_students_csv(
     department: Optional[str] = None,
     mentor: Optional[str] = None,
     record_type: Optional[str] = None,
-    current_user: dict = Depends(require_roles(["admin", "mentor", "tpo"]))
+    token: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security)
 ):
     """
     Exports filtered student roster with provenance and risk factor telemetry as downloadable CSV.
     Restricted to the selected 50 active dashboard records.
+    Authenticates via either HTTP Bearer header or token query parameter with institutional role check.
     """
+    token_str = None
+    if credentials and credentials.credentials:
+        token_str = credentials.credentials
+    elif token:
+        token_str = token
+
+    if not token_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials required. Please provide a Bearer token or token parameter.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_access_token(token_str)
+    user_role = payload.get("role")
+    if user_role not in ["admin", "mentor", "tpo"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access denied: Role '{user_role}' is not authorized for this resource. Required roles: admin, mentor, tpo"
+        )
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -567,8 +601,12 @@ async def export_students_csv(
 
     if mentor:
         m = f"%{mentor.strip().lower()}%"
-        base_query += " AND LOWER(assigned_mentor) LIKE ?"
-        params.append(m)
+        if "vihaan" in mentor.lower() or "rajesh" in mentor.lower():
+            base_query += " AND (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?)"
+            params.extend(["%rajesh%", "%vihaan%"])
+        else:
+            base_query += " AND LOWER(assigned_mentor) LIKE ?"
+            params.append(m)
 
     base_query += " ORDER BY (CASE WHEN record_type = 'verified_profile' THEN 0 ELSE 1 END), success_score DESC LIMIT 50"
 
@@ -650,7 +688,7 @@ async def create_student(
     plac_risk_band = "HIGH" if plac_risk_prob >= 0.6 else ("MEDIUM" if plac_risk_prob >= 0.3 else "LOW")
 
     avatar = req.avatar_url or "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80"
-    assigned_mentor = req.assigned_mentor or "Prof. Vihaan Singh"
+    assigned_mentor = req.assigned_mentor or "Prof. Rajesh Kumar"
 
     cursor.execute("""
     INSERT INTO students (
@@ -750,6 +788,7 @@ async def get_mentors(
     conn.close()
 
     specializations = {
+        "Prof. Rajesh Kumar": "Distributed Systems, Machine Learning & Algorithms",
         "Prof. Vihaan Singh": "Distributed Systems, Machine Learning & Algorithms",
         "Dr. Sunita Sharma": "VLSI Design, Embedded IoT & Signal Processing",
         "Prof. K. Murthy": "Thermal Engineering, CAD/CAM & Industrial Robotics",
@@ -787,8 +826,12 @@ async def list_interventions(
 
     if mentor:
         m = f"%{mentor.strip().lower()}%"
-        query += " AND LOWER(assigned_mentor) LIKE ?"
-        params.append(m)
+        if "vihaan" in mentor.lower() or "rajesh" in mentor.lower():
+            query += " AND (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?)"
+            params.extend(["%rajesh%", "%vihaan%"])
+        else:
+            query += " AND LOWER(assigned_mentor) LIKE ?"
+            params.append(m)
 
     if category:
         c = f"%{category.strip().lower()}%"

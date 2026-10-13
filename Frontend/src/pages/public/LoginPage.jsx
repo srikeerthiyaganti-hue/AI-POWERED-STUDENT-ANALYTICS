@@ -26,7 +26,7 @@ export default function LoginPage() {
 
   const [portal, setPortal] = useState('institution'); // 'institution' | 'student'
   const [identifier, setIdentifier] = useState('admin@codebuffet.edu');
-  const [password, setPassword] = useState('AdminDemo#2026');
+  const [password, setPassword] = useState('CodeBuffet@2026!');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
@@ -38,11 +38,11 @@ export default function LoginPage() {
     setPortal(newPortal);
     setError('');
     if (newPortal === 'student') {
-      setIdentifier('STU-2026-018');
-      setPassword('StudentDemo#2026');
+      setIdentifier('STU-2024-042');
+      setPassword('Student@2026!');
     } else {
       setIdentifier('admin@codebuffet.edu');
-      setPassword('AdminDemo#2026');
+      setPassword('CodeBuffet@2026!');
     }
   };
 
@@ -52,19 +52,19 @@ export default function LoginPage() {
     if (roleKey === 'admin') {
       setPortal('institution');
       setIdentifier('admin@codebuffet.edu');
-      setPassword('AdminDemo#2026');
+      setPassword('CodeBuffet@2026!');
     } else if (roleKey === 'student') {
       setPortal('student');
-      setIdentifier('STU-2026-018');
-      setPassword('StudentDemo#2026');
+      setIdentifier('STU-2024-042');
+      setPassword('Student@2026!');
     } else if (roleKey === 'mentor') {
       setPortal('institution');
-      setIdentifier('vihaan.singh@codebuffet.edu');
-      setPassword('MentorDemo#2026');
+      setIdentifier('rajesh.kumar@codebuffet.edu');
+      setPassword('Mentor@2026!');
     } else if (roleKey === 'tpo') {
       setPortal('institution');
-      setIdentifier('aarush.dev@codebuffet.edu');
-      setPassword('PlacementDemo#2026');
+      setIdentifier('vikram.tpo@codebuffet.edu');
+      setPassword('TPO@2026!');
     }
   };
 

@@ -89,28 +89,28 @@ export function AuthProvider({ children }) {
       },
       mentor: {
         id: 2,
-        email: 'vihaan.singh@codebuffet.edu',
+        email: 'rajesh.kumar@codebuffet.edu',
         roll_no: 'FAC-CSE-104',
-        name: 'Prof. Vihaan Singh',
-        full_name: 'Prof. Vihaan Singh',
+        name: 'Prof. Rajesh Kumar',
+        full_name: 'Prof. Rajesh Kumar',
         role: 'mentor',
         roleLabel: 'Faculty Mentor',
         department: 'Computer Science & Engineering',
       },
       tpo: {
         id: 3,
-        email: 'aarush.dev@codebuffet.edu',
+        email: 'vikram.tpo@codebuffet.edu',
         roll_no: 'TPO-OFFICER-02',
-        name: 'Aarush Dev',
-        full_name: 'Aarush Dev',
+        name: 'Vikram Malhotra',
+        full_name: 'Vikram Malhotra',
         role: 'tpo',
         roleLabel: 'Placement Director',
         department: 'Career & Corporate Relations',
       },
       student: {
         id: 4,
-        email: 'aarav.sharma@codebuffet.edu',
-        roll_no: 'STU-2026-018',
+        email: 'stu-2024-042@codebuffet.edu',
+        roll_no: 'STU-2024-042',
         name: 'Aarav Sharma',
         full_name: 'Aarav Sharma',
         role: 'student',
@@ -119,10 +119,10 @@ export function AuthProvider({ children }) {
       },
     };
     const credentials = {
-      admin: { identifier: 'admin@codebuffet.edu', password: 'AdminDemo#2026', portalRole: 'admin' },
-      mentor: { identifier: 'vihaan.singh@codebuffet.edu', password: 'MentorDemo#2026', portalRole: 'admin' },
-      tpo: { identifier: 'aarush.dev@codebuffet.edu', password: 'PlacementDemo#2026', portalRole: 'admin' },
-      student: { identifier: 'STU-2026-018', password: 'StudentDemo#2026', portalRole: 'student' },
+      admin: { identifier: 'admin@codebuffet.edu', password: 'CodeBuffet@2026!', portalRole: 'admin' },
+      mentor: { identifier: 'rajesh.kumar@codebuffet.edu', password: 'Mentor@2026!', portalRole: 'admin' },
+      tpo: { identifier: 'vikram.tpo@codebuffet.edu', password: 'TPO@2026!', portalRole: 'admin' },
+      student: { identifier: 'STU-2024-042', password: 'Student@2026!', portalRole: 'student' },
     };
     const cred = credentials[roleKey] || credentials.admin;
     try {

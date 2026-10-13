@@ -63,7 +63,7 @@ export default function MentorDashboard() {
     async function fetchMentorData() {
       if (isMounted) setLoading(true);
       try {
-        const mentorName = currentUser?.name || currentUser?.full_name || 'Prof. Vihaan Singh';
+        const mentorName = currentUser?.name || currentUser?.full_name || 'Prof. Rajesh Kumar';
         const cleanName = mentorName.replace(/^Prof\.\s*/i, '').replace(/^Dr\.\s*/i, '').trim();
         const [studRes, intervRes] = await Promise.allSettled([
           api.getInstitutionStudents({ mentor: cleanName }),
@@ -120,12 +120,12 @@ export default function MentorDashboard() {
             setInterventions([
               {
                 id: 1,
-                student_roll_no: 'STU-2026-018',
+                student_roll_no: 'STU-2024-042',
                 student_name: 'Aarav Sharma',
                 department: 'Computer Science & Engineering',
                 title: 'Complete LeetCode Top 50 DSA practice set',
                 category: 'SKILL_GAP',
-                assigned_mentor: 'Prof. Vihaan Singh',
+                assigned_mentor: 'Prof. Rajesh Kumar',
                 status: 'OPEN',
                 due_date: 'Oct 15, 2026',
               },
@@ -136,7 +136,7 @@ export default function MentorDashboard() {
                 department: 'Computer Science & Engineering',
                 title: 'Urgent Attendance Counseling & Arrears Remedial',
                 category: 'ATTENDANCE',
-                assigned_mentor: 'Prof. Vihaan Singh',
+                assigned_mentor: 'Prof. Rajesh Kumar',
                 status: 'OPEN',
                 due_date: 'Oct 12, 2026',
               },
@@ -182,7 +182,7 @@ export default function MentorDashboard() {
         department: 'Computer Science & Engineering',
         title: newTaskTitle.trim(),
         category: newTaskCategory,
-        assigned_mentor: currentUser?.name || 'Prof. Vihaan Singh',
+        assigned_mentor: currentUser?.name || 'Prof. Rajesh Kumar',
         due_date: newTaskDueDate,
       };
       const res = await api.createIntervention(payload);
@@ -269,7 +269,7 @@ export default function MentorDashboard() {
             <span>{isLiveApi ? 'FASTAPI MENTOR ENDPOINTS ACTIVE' : 'FACULTY MENTOR PORTAL'}</span>
           </span>
           <span>
-            Logged in as: <strong>{currentUser?.name || 'Prof. Vihaan Singh'}</strong> (Faculty Mentor • CSE)
+            Logged in as: <strong>{currentUser?.name || 'Prof. Rajesh Kumar'}</strong> (Faculty Mentor • CSE)
           </span>
         </div>
 
@@ -505,11 +505,11 @@ export default function MentorDashboard() {
                     border: '2px solid #A7F3D0',
                   }}
                 >
-                  VS
+                  RK
                 </div>
                 <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
-                    Prof. Vihaan Singh
+                    {currentUser?.name || 'Prof. Rajesh Kumar'}
                   </div>
                   <div style={{ fontSize: '0.74rem', color: '#64748B' }}>Faculty Mentor • CSE</div>
                 </div>
@@ -561,7 +561,7 @@ export default function MentorDashboard() {
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  Welcome back, Prof. Vihaan Singh!
+                  Welcome back, {currentUser?.name || 'Prof. Rajesh Kumar'}!
                 </h1>
                 <p style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.92rem', margin: 0, maxWidth: '520px' }}>
                   Proactive student mentorship: Review attendance trends, arrears status, and trigger targeted remedial interventions.

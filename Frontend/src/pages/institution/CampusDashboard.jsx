@@ -111,12 +111,12 @@ export default function CampusDashboard() {
   const [pageSize, setPageSize] = useState(25);
   const [sortBy, setSortBy] = useState('success_score');
   const [sortOrder, setSortOrder] = useState('desc');
-  const [totalRecords, setTotalRecords] = useState(8);
+  const [totalRecords, setTotalRecords] = useState(50);
   const [totalPages, setTotalPages] = useState(1);
   const [rosterCounts, setRosterCounts] = useState({
     verified_profiles: 8,
-    anonymous_cohort: 50000,
-    total_records: 50008,
+    anonymous_cohort: 42,
+    total_records: 50,
   });
 
   // Live Backend Data States
@@ -157,6 +157,7 @@ export default function CampusDashboard() {
   const [aiCopilotOpen, setAiCopilotOpen] = useState(false);
   const [interventionModalOpen, setInterventionModalOpen] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Guided Walkthrough State (Differentiator 5)
   const [walkthroughActive, setWalkthroughActive] = useState(false);
@@ -187,7 +188,7 @@ export default function CampusDashboard() {
   const [newStudentCgpa, setNewStudentCgpa] = useState('7.8');
   const [newStudentAtt, setNewStudentAtt] = useState('85.0');
   const [newStudentBacklogs, setNewStudentBacklogs] = useState('0');
-  const [newStudentMentor, setNewStudentMentor] = useState('Prof. Vihaan Singh');
+  const [newStudentMentor, setNewStudentMentor] = useState('Prof. Rajesh Kumar');
   const [enrollSubmitting, setEnrollSubmitting] = useState(false);
   const [enrollNotice, setEnrollNotice] = useState('');
 
@@ -207,13 +208,8 @@ export default function CampusDashboard() {
           if (sumRes.status === 'fulfilled' && sumRes.value) {
             setSummaryData(sumRes.value);
             setIsLiveApi(true);
-            if (sumRes.value.reconciliation) {
-              setRosterCounts({
-                verified_profiles: sumRes.value.reconciliation.verified_profiles || 8,
-                anonymous_cohort: sumRes.value.reconciliation.anonymous_cohort || 50000,
-                total_records: sumRes.value.reconciliation.total_database_records || 50008,
-              });
-            }
+            // summaryData.reconciliation preserves the 50,008 total database records telemetry
+            // rosterCounts maintains the counts for the active 50-student selected cohort
           }
           if (deptRes.status === 'fulfilled' && Array.isArray(deptRes.value)) {
             setDepartmentData(deptRes.value);
@@ -261,19 +257,32 @@ export default function CampusDashboard() {
             setTotalRecords(res.total || res.items.length);
             setTotalPages(1);
             if (res.counts) {
-              setRosterCounts((prev) => ({ ...prev, ...res.counts }));
+              setRosterCounts((prev) => ({
+                ...prev,
+                verified_profiles: res.counts.verified_profiles ?? prev.verified_profiles,
+                anonymous_cohort: res.counts.anonymous_cohort ?? prev.anonymous_cohort,
+                total_records: res.counts.total_records ?? prev.total_records,
+              }));
             }
           } else if (Array.isArray(res)) {
             setCohortStudents(res);
             setTotalRecords(res.length);
             setTotalPages(1);
+            if (recordTypeFilter === 'all' && !searchQuery && deptFilter === 'ALL' && riskFilter === 'ALL' && academicRiskFilter === 'ALL' && placementRiskFilter === 'ALL' && mentorFilter === 'ALL' && attendanceRangeFilter === 'ALL') {
+              const verified = res.filter((s) => s.recordType === 'verified_profile').length;
+              const benchmark = res.filter((s) => s.recordType !== 'verified_profile').length;
+              setRosterCounts({
+                verified_profiles: verified,
+                anonymous_cohort: benchmark,
+                total_records: res.length,
+              });
+            }
           }
         }
       } catch (err) {
         console.warn('Failed to fetch students from API, using fallback:', err);
-        if (cohortStudents.length === 0) {
-          setCohortStudents(MOCK_STUDENTS);
-        }
+        setCohortStudents(MOCK_STUDENTS);
+        setTotalRecords(MOCK_STUDENTS.length);
       } finally {
         if (isMounted) setIsLoadingStudents(false);
       }
@@ -387,22 +396,38 @@ export default function CampusDashboard() {
   };
 
   // 6. CSV Export Trigger
-  const handleExportCSV = () => {
-    const exportUrl = api.getExportStudentsUrl({
-      search: searchQuery,
-      riskBand: riskFilter !== 'ALL' ? riskFilter : undefined,
-      department: deptFilter !== 'ALL' ? deptFilter : undefined,
-      mentor: mentorFilter !== 'ALL' ? mentorFilter : undefined,
-      recordType: recordTypeFilter,
-    });
-    window.open(exportUrl, '_blank');
-    setReportGenerated(true);
-    setTimeout(() => setReportGenerated(false), 4000);
+  const handleExportCSV = async () => {
+    try {
+      setIsExporting(true);
+      await api.downloadStudentsExportCSV({
+        search: searchQuery,
+        riskBand: riskFilter !== 'ALL' ? riskFilter : undefined,
+        department: deptFilter !== 'ALL' ? deptFilter : undefined,
+        mentor: mentorFilter !== 'ALL' ? mentorFilter : undefined,
+        recordType: recordTypeFilter,
+      });
+      setReportGenerated(true);
+      setTimeout(() => setReportGenerated(false), 4000);
+    } catch (err) {
+      console.warn('Direct authenticated download failed, trying browser URL fallback:', err);
+      const exportUrl = api.getExportStudentsUrl({
+        search: searchQuery,
+        riskBand: riskFilter !== 'ALL' ? riskFilter : undefined,
+        department: deptFilter !== 'ALL' ? deptFilter : undefined,
+        mentor: mentorFilter !== 'ALL' ? mentorFilter : undefined,
+        recordType: recordTypeFilter,
+      });
+      window.open(exportUrl, '_blank');
+      setReportGenerated(true);
+      setTimeout(() => setReportGenerated(false), 4000);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // 7. Active Mentors Data
   const defaultMentors = [
-    { name: 'Prof. Vihaan Singh', department: 'Computer Science & Engineering', assigned_students_count: 3, open_interventions_count: 3 },
+    { name: 'Prof. Rajesh Kumar', department: 'Computer Science & Engineering', assigned_students_count: 3, open_interventions_count: 3 },
     { name: 'Dr. Sunita Sharma', department: 'Electronics & Communication', assigned_students_count: 3, open_interventions_count: 2 },
     { name: 'Prof. K. Murthy', department: 'Mechanical Engineering', assigned_students_count: 2, open_interventions_count: 2 },
   ];
@@ -1638,7 +1663,7 @@ export default function CampusDashboard() {
                       Step 3: Governance & Mentor Allocation
                     </h3>
                     <p style={{ fontSize: '0.80rem', color: '#64748B', margin: 0, lineHeight: 1.5 }}>
-                      Assigned to <strong>Prof. Vihaan Singh (CSE Department Head)</strong> with automated calendar notification and weekly check-in mandates.
+                      Assigned to <strong>Prof. Rajesh Kumar (CSE Department Head)</strong> with automated calendar notification and weekly check-in mandates.
                     </p>
                   </div>
                 )}
@@ -1707,6 +1732,7 @@ export default function CampusDashboard() {
                   </button>
                   <button
                     onClick={handleExportCSV}
+                    disabled={isExporting}
                     style={{
                       padding: '8px 14px',
                       borderRadius: '8px',
@@ -1715,10 +1741,11 @@ export default function CampusDashboard() {
                       border: `1px solid ${isDarkMode ? '#334155' : '#CBD5E1'}`,
                       fontSize: '0.82rem',
                       fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: isExporting ? 'wait' : 'pointer',
+                      opacity: isExporting ? 0.7 : 1,
                     }}
                   >
-                    Export CSV
+                    {isExporting ? 'Exporting...' : 'Export CSV'}
                   </button>
                 </div>
               </div>
@@ -1936,7 +1963,7 @@ export default function CampusDashboard() {
                           </td>
                           <td style={{ padding: '12px 8px' }}>
                             <select
-                              value={s.assignedMentor || 'Prof. Vihaan Singh'}
+                              value={s.assignedMentor || 'Prof. Rajesh Kumar'}
                               onChange={(e) => handleAssignMentor(s.id, e.target.value)}
                               style={{
                                 padding: '4px 6px',
@@ -1949,7 +1976,7 @@ export default function CampusDashboard() {
                                 cursor: 'pointer',
                               }}
                             >
-                              <option value="Prof. Vihaan Singh">Prof. Vihaan Singh (CSE)</option>
+                              <option value="Prof. Rajesh Kumar">Prof. Rajesh Kumar (CSE)</option>
                               <option value="Dr. Sunita Sharma">Dr. Sunita Sharma (ECE)</option>
                               <option value="Prof. K. Murthy">Prof. K. Murthy (MECH)</option>
                             </select>
@@ -1994,10 +2021,16 @@ export default function CampusDashboard() {
                 }}
               >
                 <div>
-                  Showing all <strong>{cohortStudents.length}</strong> selected student records directly ({rosterCounts.verified_profiles || 8} verified profiles • {rosterCounts.anonymous_cohort || 42} benchmark records)
+                  {recordTypeFilter === 'verified_profile' ? (
+                    <span>Showing <strong>{cohortStudents.length}</strong> verified student profiles (100% telemetry completeness)</span>
+                  ) : recordTypeFilter === 'anonymous_cohort' ? (
+                    <span>Showing <strong>{cohortStudents.length}</strong> benchmark cohort records (94.1% telemetry completeness)</span>
+                  ) : (
+                    <span>Showing all <strong>{cohortStudents.length}</strong> selected student records directly ({rosterCounts.verified_profiles || 8} verified profiles • {rosterCounts.anonymous_cohort || 42} benchmark records)</span>
+                  )}
                 </div>
                 <div style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 600 }}>
-                  ✓ 50-Record Dashboard Cohort Loaded (Direct Display • No Pagination)
+                  ✓ {cohortStudents.length === 50 ? '50-Record Dashboard Cohort Loaded' : `${cohortStudents.length} Records Loaded`} (Direct Display • No Pagination)
                 </div>
               </div>
 
@@ -2030,7 +2063,7 @@ export default function CampusDashboard() {
                           </span>
                         </div>
                         <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                          Roll ID: <strong>{selectedStudent.id}</strong> • {selectedStudent.department} • Assigned to <strong>{selectedStudent.assignedMentor || 'Prof. Vihaan Singh'}</strong>
+                          Roll ID: <strong>{selectedStudent.id}</strong> • {selectedStudent.department} • Assigned to <strong>{selectedStudent.assignedMentor || 'Prof. Rajesh Kumar'}</strong>
                         </div>
                       </div>
                     </div>
@@ -2207,7 +2240,7 @@ export default function CampusDashboard() {
                     onChange={(e) => setNewStudentMentor(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
                   >
-                    <option value="Prof. Vihaan Singh">Prof. Vihaan Singh (CSE)</option>
+                    <option value="Prof. Rajesh Kumar">Prof. Rajesh Kumar (CSE)</option>
                     <option value="Dr. Sunita Sharma">Dr. Sunita Sharma (ECE)</option>
                     <option value="Prof. K. Murthy">Prof. K. Murthy (MECH)</option>
                   </select>
