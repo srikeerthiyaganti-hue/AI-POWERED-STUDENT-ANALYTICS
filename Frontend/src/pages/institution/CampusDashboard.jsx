@@ -192,6 +192,88 @@ export default function CampusDashboard() {
   const [enrollSubmitting, setEnrollSubmitting] = useState(false);
   const [enrollNotice, setEnrollNotice] = useState('');
 
+  // Account Approval Workflow State
+  const [approvalsList, setApprovalsList] = useState([]);
+  const [approvalsCounts, setApprovalsCounts] = useState({
+    total_pending: 0,
+    pending_faculty: 0,
+    pending_admin: 0,
+    pending_tpo: 0,
+    total_active: 0,
+    total_rejected: 0,
+  });
+  const [approvalTab, setApprovalTab] = useState('ALL_PENDING'); // 'ALL_PENDING' | 'mentor' | 'admin' | 'tpo' | 'HISTORICAL'
+  const [approvalSearch, setApprovalSearch] = useState('');
+  const [isLoadingApprovals, setIsLoadingApprovals] = useState(false);
+  const [approvalActionLoadingId, setApprovalActionLoadingId] = useState(null);
+  const [approvalToast, setApprovalToast] = useState(null);
+  const [approvalError, setApprovalError] = useState(null);
+
+  // Filtered approvals list based on approvalSearch (safely declared after approvalsList & approvalSearch)
+  const filteredApprovals = useMemo(() => {
+    if (!Array.isArray(approvalsList)) return [];
+    return approvalsList.filter((app) => {
+      if (!app) return false;
+      if (!approvalSearch) return true;
+      const q = approvalSearch.toLowerCase();
+      return (
+        (app.full_name && app.full_name.toLowerCase().includes(q)) ||
+        (app.email && app.email.toLowerCase().includes(q)) ||
+        (app.roll_no && app.roll_no.toLowerCase().includes(q)) ||
+        (app.department && app.department.toLowerCase().includes(q))
+      );
+    });
+  }, [approvalsList, approvalSearch]);
+
+  // Load account approvals
+  const loadApprovals = async (statusFilter = 'PENDING_APPROVAL', roleFilter = '') => {
+    setIsLoadingApprovals(true);
+    setApprovalError(null);
+    try {
+      const data = await api.getPendingApprovals(statusFilter, roleFilter);
+      if (data?.success) {
+        setApprovalsList(Array.isArray(data.approvals) ? data.approvals : []);
+        if (data.counts) {
+          setApprovalsCounts(data.counts);
+        }
+      } else {
+        const msg = data?.detail || 'Unable to retrieve pending approvals from server.';
+        setApprovalError(msg);
+      }
+    } catch (err) {
+      console.warn('Could not load account approvals:', err.message);
+      setApprovalError(err.message || 'Unable to connect to CODEBUFFET backend service.');
+    } finally {
+      setIsLoadingApprovals(false);
+    }
+  };
+
+  const handleApprovalAction = async (userId, action, applicantName) => {
+    setApprovalActionLoadingId(userId);
+    try {
+      const res = await api.processAccountApproval(userId, action);
+      if (res?.success) {
+        setApprovalToast({
+          type: action === 'APPROVE' ? 'success' : 'info',
+          message: res.message || `${applicantName} has been ${action.toLowerCase()}ed.`,
+        });
+        setTimeout(() => setApprovalToast(null), 5000);
+        // Refresh active list and counts
+        const curStatus = approvalTab === 'HISTORICAL' ? 'ALL' : 'PENDING_APPROVAL';
+        const curRole = ['mentor', 'admin', 'tpo'].includes(approvalTab) ? approvalTab : '';
+        await loadApprovals(curStatus, curRole);
+      }
+    } catch (err) {
+      setApprovalToast({
+        type: 'error',
+        message: err.message || `Failed to ${action.toLowerCase()} account.`,
+      });
+      setTimeout(() => setApprovalToast(null), 5000);
+    } finally {
+      setApprovalActionLoadingId(null);
+    }
+  };
+
   // 1. Initial Load: Summary, Departments, Mentors, Model Status
   useEffect(() => {
     let isMounted = true;
@@ -203,6 +285,16 @@ export default function CampusDashboard() {
           api.getMentors(),
           api.getModelStatus(),
         ]);
+
+        // Fetch pending institutional approvals count for administrator notification
+        try {
+          const appRes = await api.getPendingApprovals('PENDING_APPROVAL');
+          if (appRes?.counts && isMounted) {
+            setApprovalsCounts(appRes.counts);
+          }
+        } catch {
+          // Non-blocking for unauthenticated or test contexts
+        }
 
         if (isMounted) {
           if (sumRes.status === 'fulfilled' && sumRes.value) {
@@ -231,7 +323,17 @@ export default function CampusDashboard() {
     };
   }, []);
 
-  // 2. Query Selected 50 Students Directly (Direct Cohort Display • Zero Pagination)
+
+  // Re-fetch approvals when navigating to Approvals tab or switching role sub-tabs
+  useEffect(() => {
+    if (activeNav === 'Approvals') {
+      const curStatus = approvalTab === 'HISTORICAL' ? 'ALL' : 'PENDING_APPROVAL';
+      const curRole = ['mentor', 'admin', 'tpo'].includes(approvalTab) ? approvalTab : '';
+      loadApprovals(curStatus, curRole);
+    }
+  }, [activeNav, approvalTab]);
+
+    // 2. Query Selected 50 Students Directly (Direct Cohort Display • Zero Pagination)
   useEffect(() => {
     let isMounted = true;
     async function fetchStudents() {
@@ -402,6 +504,8 @@ export default function CampusDashboard() {
       await api.downloadStudentsExportCSV({
         search: searchQuery,
         riskBand: riskFilter !== 'ALL' ? riskFilter : undefined,
+        academicRisk: academicRiskFilter !== 'ALL' ? academicRiskFilter : undefined,
+        placementRisk: placementRiskFilter !== 'ALL' ? placementRiskFilter : undefined,
         department: deptFilter !== 'ALL' ? deptFilter : undefined,
         mentor: mentorFilter !== 'ALL' ? mentorFilter : undefined,
         recordType: recordTypeFilter,
@@ -413,6 +517,8 @@ export default function CampusDashboard() {
       const exportUrl = api.getExportStudentsUrl({
         search: searchQuery,
         riskBand: riskFilter !== 'ALL' ? riskFilter : undefined,
+        academicRisk: academicRiskFilter !== 'ALL' ? academicRiskFilter : undefined,
+        placementRisk: placementRiskFilter !== 'ALL' ? placementRiskFilter : undefined,
         department: deptFilter !== 'ALL' ? deptFilter : undefined,
         mentor: mentorFilter !== 'ALL' ? mentorFilter : undefined,
         recordType: recordTypeFilter,
@@ -619,8 +725,8 @@ export default function CampusDashboard() {
                   gap: '12px',
                   padding: '9px 12px',
                   borderRadius: '10px',
-                  backgroundColor: '#EFF6FF',
-                  color: '#1E6BFF',
+                  backgroundColor: activeNav === 'Dashboard' ? (isDarkMode ? '#1E293B' : '#EFF6FF') : 'transparent',
+                  color: activeNav === 'Dashboard' ? '#1E6BFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
                   fontWeight: 700,
                   fontSize: '0.86rem',
                   border: 'none',
@@ -631,6 +737,44 @@ export default function CampusDashboard() {
               >
                 <Home size={18} />
                 <span>Executive Command</span>
+              </button>
+
+              <button
+                onClick={() => setActiveNav('Approvals')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  backgroundColor: activeNav === 'Approvals' ? (isDarkMode ? '#1E293B' : '#EFF6FF') : 'transparent',
+                  color: activeNav === 'Approvals' ? '#1E6BFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
+                  fontWeight: 700,
+                  fontSize: '0.86rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <ShieldCheck size={18} />
+                  <span>Account Approvals</span>
+                </div>
+                {approvalsCounts.total_pending > 0 && (
+                  <span
+                    style={{
+                      backgroundColor: '#EF4444',
+                      color: '#FFFFFF',
+                      fontSize: '0.70rem',
+                      fontWeight: 800,
+                      padding: '2px 7px',
+                      borderRadius: '12px',
+                    }}
+                  >
+                    {approvalsCounts.total_pending}
+                  </span>
+                )}
               </button>
             </nav>
 
@@ -874,6 +1018,482 @@ export default function CampusDashboard() {
               </div>
             )}
 
+            {activeNav === 'Approvals' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Page Header */}
+                <div
+                  style={{
+                    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                    borderRadius: '16px',
+                    border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                    padding: '1.75rem 2rem',
+                    boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <ShieldCheck size={24} style={{ color: '#1E6BFF' }} />
+                      <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
+                        Institutional Account Approvals
+                      </h1>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.86rem', color: isDarkMode ? '#94A3B8' : '#64748B' }}>
+                      Verify and approve restricted institutional accounts (Faculty, Institution Officers, Placement Officers) before granting dashboard access. All actions are recorded in the institutional audit log.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const curStatus = approvalTab === 'HISTORICAL' ? 'ALL' : 'PENDING_APPROVAL';
+                      const curRole = ['mentor', 'admin', 'tpo'].includes(approvalTab) ? approvalTab : '';
+                      loadApprovals(curStatus, curRole);
+                    }}
+                    disabled={isLoadingApprovals}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9',
+                      color: isDarkMode ? '#FFFFFF' : '#334155',
+                      border: `1px solid ${isDarkMode ? '#334155' : '#CBD5E1'}`,
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <RefreshCw size={14} className={isLoadingApprovals ? 'spin' : ''} />
+                    <span>Refresh List</span>
+                  </button>
+                </div>
+
+                {/* Toast notification banner */}
+                {approvalToast && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '10px',
+                      backgroundColor: approvalToast.type === 'success' ? '#ECFDF5' : (approvalToast.type === 'error' ? '#FEF2F2' : '#EFF6FF'),
+                      border: `1px solid ${approvalToast.type === 'success' ? '#10B981' : (approvalToast.type === 'error' ? '#EF4444' : '#3B82F6')}`,
+                      color: approvalToast.type === 'success' ? '#065F46' : (approvalToast.type === 'error' ? '#991B1B' : '#1E40AF'),
+                      fontSize: '0.86rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {approvalToast.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+                      <span>{approvalToast.message}</span>
+                    </div>
+                    <button
+                      onClick={() => setApprovalToast(null)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 800 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Error notification banner */}
+                {approvalError && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '10px',
+                      backgroundColor: '#FEF2F2',
+                      border: '1px solid #FECACA',
+                      color: '#991B1B',
+                      fontSize: '0.86rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertTriangle size={18} style={{ color: '#EF4444', flexShrink: 0 }} />
+                      <span>{approvalError}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const curStatus = approvalTab === 'HISTORICAL' ? 'ALL' : 'PENDING_APPROVAL';
+                        const curRole = ['mentor', 'admin', 'tpo'].includes(approvalTab) ? approvalTab : '';
+                        loadApprovals(curStatus, curRole);
+                      }}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: '6px',
+                        backgroundColor: '#DC2626',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+
+                {/* Filter Navigation Tabs & Search */}
+                <div
+                  style={{
+                    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                    borderRadius: '16px',
+                    border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                    padding: '1rem 1.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                  }}
+                >
+                  {/* Role Tabs */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'ALL_PENDING', label: 'All Pending', count: approvalsCounts.total_pending },
+                      { id: 'mentor', label: 'Faculty / Mentor', count: approvalsCounts.pending_faculty },
+                      { id: 'admin', label: 'Institution Officer', count: approvalsCounts.pending_admin },
+                      { id: 'tpo', label: 'Placement Officer', count: approvalsCounts.pending_tpo },
+                      { id: 'HISTORICAL', label: 'All Records / History', count: approvalsCounts.total_active + approvalsCounts.total_rejected },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setApprovalTab(tab.id)}
+                        style={{
+                          padding: '7px 14px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          fontSize: '0.80rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          backgroundColor: approvalTab === tab.id ? '#1E6BFF' : (isDarkMode ? '#0F172A' : '#F1F5F9'),
+                          color: approvalTab === tab.id ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B'),
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span>{tab.label}</span>
+                        <span
+                          style={{
+                            fontSize: '0.70rem',
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            backgroundColor: approvalTab === tab.id ? 'rgba(255,255,255,0.25)' : (isDarkMode ? '#1E293B' : '#E2E8F0'),
+                            color: approvalTab === tab.id ? '#FFFFFF' : (isDarkMode ? '#CBD5E1' : '#475569'),
+                          }}
+                        >
+                          {tab.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search Bar */}
+                  <div style={{ position: 'relative', width: '280px' }}>
+                    <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+                    <input
+                      type="text"
+                      placeholder="Filter applicant name, email..."
+                      value={approvalSearch}
+                      onChange={(e) => setApprovalSearch(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '7px 10px 7px 32px',
+                        borderRadius: '8px',
+                        border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                        backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+                        color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                        fontSize: '0.80rem',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Applicants List Table */}
+                <div
+                  style={{
+                    backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                    borderRadius: '16px',
+                    border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                    overflow: 'hidden',
+                    boxShadow: '0 2px 10px rgba(15, 23, 42, 0.03)',
+                  }}
+                >
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.84rem' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}` }}>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, color: isDarkMode ? '#94A3B8' : '#64748B', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            APPLICANT & CONTACT
+                          </th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, color: isDarkMode ? '#94A3B8' : '#64748B', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            REQUESTED ROLE
+                          </th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, color: isDarkMode ? '#94A3B8' : '#64748B', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            DEPARTMENT
+                          </th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, color: isDarkMode ? '#94A3B8' : '#64748B', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            APPLIED DATE
+                          </th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, color: isDarkMode ? '#94A3B8' : '#64748B', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            APPROVAL STATUS
+                          </th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, color: isDarkMode ? '#94A3B8' : '#64748B', fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>
+                            ADMIN ACTION
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {approvalError ? (
+                          <tr>
+                            <td colSpan={6} style={{ padding: '3rem 2rem', textAlign: 'center', color: '#991B1B' }}>
+                              <AlertTriangle size={40} style={{ color: '#EF4444', margin: '0 auto 12px auto', display: 'block' }} />
+                              <div style={{ fontWeight: 700, fontSize: '1rem', color: isDarkMode ? '#FFFFFF' : '#0F172A', marginBottom: '4px' }}>
+                                Failed to Retrieve Approvals
+                              </div>
+                              <div style={{ fontSize: '0.84rem', color: '#64748B', maxWidth: '480px', margin: '0 auto 12px auto' }}>
+                                {approvalError}
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const curStatus = approvalTab === 'HISTORICAL' ? 'ALL' : 'PENDING_APPROVAL';
+                                  const curRole = ['mentor', 'admin', 'tpo'].includes(approvalTab) ? approvalTab : '';
+                                  loadApprovals(curStatus, curRole);
+                                }}
+                                style={{
+                                  padding: '6px 14px',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#1E6BFF',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  fontSize: '0.80rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Retry
+                              </button>
+                            </td>
+                          </tr>
+                        ) : filteredApprovals.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} style={{ padding: '3rem 2rem', textAlign: 'center', color: '#94A3B8' }}>
+                              <ShieldCheck size={40} style={{ color: '#10B981', margin: '0 auto 12px auto', display: 'block', opacity: 0.8 }} />
+                              <div style={{ fontWeight: 700, fontSize: '1rem', color: isDarkMode ? '#FFFFFF' : '#0F172A', marginBottom: '4px' }}>
+                                No Applications Found
+                              </div>
+                              <div style={{ fontSize: '0.84rem' }}>
+                                {approvalSearch ? 'No registrations match your search criteria.' : 'All institutional registrations have been reviewed.'}
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredApprovals.map((app) => (
+                            <tr
+                              key={app.id}
+                              style={{
+                                borderBottom: `1px solid ${isDarkMode ? '#334155' : '#F1F5F9'}`,
+                                transition: 'background-color 0.15s ease',
+                              }}
+                            >
+                              <td style={{ padding: '14px 16px' }}>
+                                <div style={{ fontWeight: 700, color: isDarkMode ? '#FFFFFF' : '#0F172A', fontSize: '0.90rem' }}>
+                                  {app.full_name}
+                                </div>
+                                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '2px' }}>
+                                  {app.email} {app.phone_number && `• ${app.phone_number}`}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: '#94A3B8', fontFamily: 'monospace' }}>
+                                  ID: {app.roll_no || `EMP-${app.id}`}
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <span
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    backgroundColor:
+                                      app.role === 'mentor' ? 'rgba(139, 92, 246, 0.12)' :
+                                      app.role === 'admin' ? 'rgba(30, 107, 255, 0.12)' :
+                                      app.role === 'tpo' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                                    color:
+                                      app.role === 'mentor' ? '#8B5CF6' :
+                                      app.role === 'admin' ? '#1E6BFF' :
+                                      app.role === 'tpo' ? '#F59E0B' : '#10B981',
+                                  }}
+                                >
+                                  {app.role_label || app.role}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 16px', color: isDarkMode ? '#CBD5E1' : '#334155', fontSize: '0.82rem' }}>
+                                {app.department || 'Institutional Administration'}
+                              </td>
+                              <td style={{ padding: '14px 16px', color: '#64748B', fontSize: '0.78rem' }}>
+                                {app.created_at ? new Date(app.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
+                              </td>
+                              <td style={{ padding: '14px 16px' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '3px 8px',
+                                    borderRadius: '9999px',
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    backgroundColor:
+                                      app.status === 'PENDING_APPROVAL' ? '#FEF3C7' :
+                                      app.status === 'ACTIVE' ? '#DCFCE7' : '#FEE2E2',
+                                    color:
+                                      app.status === 'PENDING_APPROVAL' ? '#B45309' :
+                                      app.status === 'ACTIVE' ? '#15803D' : '#B91C1C',
+                                  }}
+                                >
+                                  {app.status === 'PENDING_APPROVAL' && <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97706' }} />}
+                                  {app.status === 'PENDING_APPROVAL' ? 'Pending Verification' : (app.status === 'ACTIVE' ? 'Approved & Active' : 'Rejected')}
+                                </span>
+                              </td>
+                              <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                                {app.status === 'PENDING_APPROVAL' ? (
+                                  <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                    <button
+                                      onClick={() => handleApprovalAction(app.id, 'APPROVE', app.full_name)}
+                                      disabled={approvalActionLoadingId === app.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        backgroundColor: '#10B981',
+                                        color: '#FFFFFF',
+                                        border: 'none',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        boxShadow: '0 1px 3px rgba(16,185,129,0.3)',
+                                      }}
+                                    >
+                                      <CheckCircle size={13} />
+                                      <span>{approvalActionLoadingId === app.id ? 'Processing...' : 'Approve'}</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleApprovalAction(app.id, 'REJECT', app.full_name)}
+                                      disabled={approvalActionLoadingId === app.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                                        color: '#EF4444',
+                                        border: '1px solid #FECACA',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      <X size={13} />
+                                      <span>Reject</span>
+                                    </button>
+                                  </div>
+                                ) : app.status === 'ACTIVE' ? (
+                                  <span style={{ fontSize: '0.76rem', color: '#10B981', fontWeight: 600 }}>
+                                    Verified ✓
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleApprovalAction(app.id, 'APPROVE', app.full_name)}
+                                    disabled={approvalActionLoadingId === app.id}
+                                    style={{
+                                      padding: '4px 10px',
+                                      borderRadius: '6px',
+                                      backgroundColor: '#EFF6FF',
+                                      color: '#1E6BFF',
+                                      border: '1px solid #BFDBFE',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Re-evaluate & Approve
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+
+            {/* High-Visibility Institutional Account Approval Alert Callout */}
+            {approvalsCounts.total_pending > 0 && activeNav !== 'Approvals' && (
+              <div
+                style={{
+                  padding: '14px 20px',
+                  borderRadius: '12px',
+                  backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.12)' : '#FFFBEB',
+                  border: `1px solid ${isDarkMode ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A'}`,
+                  color: isDarkMode ? '#FCD34D' : '#92400E',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 6px rgba(245, 158, 11, 0.08)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <ShieldAlert size={20} style={{ color: '#F59E0B', flexShrink: 0 }} />
+                  <span>
+                    <strong>{approvalsCounts.total_pending} Institutional Account{approvalsCounts.total_pending > 1 ? 's' : ''}</strong> pending administrative verification. Restricted institutional roles require approval before dashboard access is unlocked.
+                  </span>
+                </div>
+                <button
+                  onClick={() => setActiveNav('Approvals')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    backgroundColor: '#D97706',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    fontSize: '0.80rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    marginLeft: '12px',
+                  }}
+                >
+                  Review & Approve →
+                </button>
+              </div>
+            )}
+
             {/* ===================================================================
                 SECTION A: EXECUTIVE OVERVIEW & PROVENANCE RECONCILIATION
                 =================================================================== */}
@@ -980,7 +1600,7 @@ export default function CampusDashboard() {
                   </div>
                 </div>
                 <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 600, marginTop: '6px' }}>
-                  50 Displayed Cohort • 50,008 Total in DB
+                  {cohortStudents.length || 50} Displayed Cohort · {summaryData.total_students ? summaryData.total_students.toLocaleString() : '50,008'} Total in DB
                 </div>
               </div>
 
@@ -1710,7 +2330,7 @@ export default function CampusDashboard() {
                     Student Directory & Analytics Roster
                   </h2>
                   <span style={{ fontSize: '0.80rem', color: '#64748B' }}>
-                    Displaying {cohortStudents.length} of 50 Selected Student Records (Active Cohort) • 50,008 Total in Database
+                    Displaying {cohortStudents.length} of {rosterCounts.total_records || 50} Selected Student Records (Active Cohort) · {summaryData.total_students ? summaryData.total_students.toLocaleString() : '50,008'} Total in Database
                   </span>
                 </div>
 
@@ -1954,11 +2574,29 @@ export default function CampusDashboard() {
                                 borderRadius: '9999px',
                                 fontSize: '0.70rem',
                                 fontWeight: 700,
-                                backgroundColor: s.placementRisk === 'HIGH' ? '#FEF2F2' : s.placementRisk === 'MEDIUM' ? '#FAF5FF' : '#ECFDF5',
-                                color: s.placementRisk === 'HIGH' ? '#DC2626' : s.placementRisk === 'MEDIUM' ? '#7C3AED' : '#059669',
+                                backgroundColor:
+                                  s.placementRisk === 'HIGH'
+                                    ? '#FEF2F2'
+                                    : s.placementRisk === 'MEDIUM'
+                                    ? '#FAF5FF'
+                                    : s.placementRisk === 'LOW'
+                                    ? '#ECFDF5'
+                                    : '#F1F5F9',
+                                color:
+                                  s.placementRisk === 'HIGH'
+                                    ? '#DC2626'
+                                    : s.placementRisk === 'MEDIUM'
+                                    ? '#7C3AED'
+                                    : s.placementRisk === 'LOW'
+                                    ? '#059669'
+                                    : '#64748B',
+                                border:
+                                  s.placementRisk === 'NOT_ASSESSED' || s.placementRisk === 'UNKNOWN'
+                                    ? '1px dashed #CBD5E1'
+                                    : 'none',
                               }}
                             >
-                              {s.placementRisk}
+                              {s.placementRisk || 'NOT_ASSESSED'}
                             </span>
                           </td>
                           <td style={{ padding: '12px 8px' }}>
@@ -2149,6 +2787,8 @@ export default function CampusDashboard() {
                 </div>
               </div>
             </div>
+              </>
+            )}
           </main>
         </div>
       </div>

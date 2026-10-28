@@ -132,6 +132,32 @@ async def get_current_user(
             detail="Invalid token payload: missing subject.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Server-side verification of account status (pending/rejected accounts denied API access)
+    try:
+        from backend.database import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, role, email FROM users WHERE id = ?", (user_id,))
+        user_row = cursor.fetchone()
+        conn.close()
+        if user_row:
+            u_status = user_row["status"] if "status" in user_row.keys() and user_row["status"] else "ACTIVE"
+            if u_status == "PENDING_APPROVAL":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account pending administrative verification. Your institutional account requires approval before you can access the dashboard. Please contact your Institution Officer/Admin."
+                )
+            if u_status in ["REJECTED", "INACTIVE", "SUSPENDED"]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This account has been rejected or deactivated. Please contact your Institution Officer/Admin."
+                )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
     return payload
 
 

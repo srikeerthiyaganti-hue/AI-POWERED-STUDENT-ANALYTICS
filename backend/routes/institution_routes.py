@@ -12,11 +12,12 @@ import csv
 import math
 import hashlib
 from typing import Optional, List
+from datetime import datetime, timezone
 import pandas as pd
 from pydantic import BaseModel
 from fastapi import APIRouter, Query, HTTPException, Depends, status, Response, Security
 from fastapi.security import HTTPAuthorizationCredentials
-from backend.database import get_db_connection
+from backend.database import get_db_connection, record_audit_log
 from backend.auth import get_current_user, require_roles, decode_access_token, security
 from ml_service import calculate_student_success_score
 
@@ -46,6 +47,13 @@ class InterventionCreateRequest(BaseModel):
     category: str
     assigned_mentor: str
     due_date: str
+    priority: Optional[str] = "MEDIUM"
+    owner_role: Optional[str] = "MENTOR"
+
+
+class MentorAICopilotRequest(BaseModel):
+    roll_no: str
+    action: Optional[str] = "analyze"
 
 
 class MentorAssignRequest(BaseModel):
@@ -337,22 +345,14 @@ async def get_students(
         if "vihaan" in mentor.lower() or "rajesh" in mentor.lower():
             base_query += " AND (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ? OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?))"
             params.extend(["%rajesh%", "%vihaan%", "%rajesh%", "%vihaan%"])
-            if not record_type:
-                base_query += " AND (record_type = 'verified_profile' OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?))"
-                params.extend(["%rajesh%", "%vihaan%"])
-            elif record_type.strip().lower() != "all":
-                base_query += " AND record_type = ?"
-                params.append(record_type.strip().lower())
         else:
             base_query += " AND (LOWER(assigned_mentor) LIKE ? OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ?))"
             params.extend([m, m])
-            # Mentor dashboard: default to genuine enrolled student profiles unless specifically requested otherwise
-            if not record_type:
-                base_query += " AND (record_type = 'verified_profile' OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ?))"
-                params.append(m)
-            elif record_type.strip().lower() != "all":
-                base_query += " AND record_type = ?"
-                params.append(record_type.strip().lower())
+
+        # Filter by record_type only if explicitly requested (e.g. 'verified_profile' or 'anonymous_cohort')
+        if record_type and record_type.strip().lower() not in ("all", ""):
+            base_query += " AND record_type = ?"
+            params.append(record_type.strip().lower())
 
     if search:
         s = f"%{search.strip().lower()}%"
@@ -384,6 +384,8 @@ async def get_students(
             "mech": "mechanical",
             "civil": "civil",
             "eee": "electrical",
+            "aiml": "artificial intelligence",
+            "ds": "data science",
         }
         search_dept = dept_abbr_map.get(dept_raw, dept_raw)
         base_query += " AND (LOWER(department) LIKE ? OR LOWER(department) LIKE ?)"
@@ -430,8 +432,10 @@ async def get_students(
     order_col = sort_col_map.get(sort_by, "success_score")
     order_dir = "DESC" if (sort_order or "").lower() == "desc" else "ASC"
 
-    # Priority to verified profiles when viewing all or unsorted
-    if not record_type or record_type.lower() == "all":
+    # Priority to verified profiles when viewing all in default order (success_score desc),
+    # but when user explicitly selects a different sort column (e.g. CGPA, attendance, backlogs) or toggles asc,
+    # respect strict column ordering across the entire 50-student cohort
+    if (not record_type or record_type.lower() == "all") and (not sort_by or sort_by == "success_score") and (not sort_order or sort_order.lower() == "desc"):
         order_clause = f" ORDER BY (CASE WHEN record_type = 'verified_profile' THEN 0 ELSE 1 END), {order_col} {order_dir}"
     else:
         order_clause = f" ORDER BY {order_col} {order_dir}"
@@ -543,6 +547,8 @@ async def get_students(
 async def export_students_csv(
     search: Optional[str] = None,
     risk_band: Optional[str] = None,
+    academic_risk: Optional[str] = None,
+    placement_risk: Optional[str] = None,
     department: Optional[str] = None,
     mentor: Optional[str] = None,
     record_type: Optional[str] = None,
@@ -555,7 +561,7 @@ async def export_students_csv(
     Authenticates via either HTTP Bearer header or token query parameter with institutional role check.
     """
     token_str = None
-    if credentials and credentials.credentials:
+    if isinstance(credentials, HTTPAuthorizationCredentials) and credentials.credentials:
         token_str = credentials.credentials
     elif token:
         token_str = token
@@ -593,6 +599,14 @@ async def export_students_csv(
     if risk_band:
         base_query += " AND (academic_risk_band = ? OR placement_risk_band = ?)"
         params.extend([risk_band.upper(), risk_band.upper()])
+
+    if academic_risk:
+        base_query += " AND academic_risk_band = ?"
+        params.append(academic_risk.upper())
+
+    if placement_risk:
+        base_query += " AND placement_risk_band = ?"
+        params.append(placement_risk.upper())
 
     if department:
         dept_raw = department.strip().lower()
@@ -855,9 +869,14 @@ async def create_intervention(
     """
     conn = get_db_connection()
     cursor = conn.cursor()
+    user_email = current_user.get("email") or current_user.get("sub") or "institution_staff"
+    user_role = current_user.get("role", "mentor")
+    priority = (req.priority or "MEDIUM").upper()
+    owner_role = (req.owner_role or "MENTOR").upper()
+
     cursor.execute("""
-    INSERT INTO interventions (student_roll_no, student_name, department, title, category, assigned_mentor, status, due_date)
-    VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?)
+    INSERT INTO interventions (student_roll_no, student_name, department, title, category, assigned_mentor, status, due_date, priority, owner_role, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, ?)
     """, (
         req.student_roll_no.strip(),
         req.student_name.strip(),
@@ -866,9 +885,21 @@ async def create_intervention(
         req.category.strip().upper(),
         req.assigned_mentor.strip(),
         req.due_date.strip(),
+        priority,
+        owner_role,
+        user_email
     ))
     conn.commit()
     new_id = cursor.lastrowid
+    record_audit_log(
+        conn,
+        user_email,
+        user_role,
+        "CREATE_INTERVENTION",
+        "intervention",
+        str(new_id),
+        f"Created intervention '{req.title}' for {req.student_roll_no}"
+    )
     conn.close()
     return {"id": new_id, "success": True, "message": "Intervention created successfully."}
 
@@ -890,8 +921,19 @@ async def toggle_institution_intervention(
         raise HTTPException(status_code=404, detail="Intervention record not found")
 
     new_status = "COMPLETED" if row["status"] == "OPEN" else "OPEN"
-    cursor.execute("UPDATE interventions SET status = ? WHERE id = ?", (new_status, task_id))
+    completed_clause = ", completed_at = CURRENT_TIMESTAMP" if new_status == "COMPLETED" else ", completed_at = NULL"
+    cursor.execute(f"UPDATE interventions SET status = ? {completed_clause} WHERE id = ?", (new_status, task_id))
     conn.commit()
+    user_email = current_user.get("email") or current_user.get("sub")
+    record_audit_log(
+        conn,
+        user_email,
+        current_user.get("role"),
+        "UPDATE_INTERVENTION_STATUS",
+        "intervention",
+        str(task_id),
+        f"Toggled status to {new_status}"
+    )
     conn.close()
 
     return {"task_id": task_id, "new_status": new_status}
@@ -1068,4 +1110,424 @@ async def get_model_status(
             "compliance_standard": "KPMG Smart Campus Analytics Technical Rigor Standard",
             "last_audited": "2026-10-10"
         }
+    }
+
+
+@router.get("/students/{roll_no}/history")
+async def get_institution_student_history(
+    roll_no: str,
+    current_user: dict = Depends(require_roles(["admin", "mentor", "tpo"]))
+):
+    """
+    Retrieves historical semester-wise metrics (CGPA, attendance, success score)
+    for the specified student roll_no from the student_history table.
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+    SELECT metric_type, semester, period_label, value, notes, recorded_at
+    FROM student_history
+    WHERE LOWER(student_roll_no) = LOWER(?)
+    ORDER BY semester ASC, id ASC
+    """, (roll_no.strip(),))
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    history_by_metric = {}
+    for r in rows:
+        m = r["metric_type"]
+        if m not in history_by_metric:
+            history_by_metric[m] = []
+        history_by_metric[m].append({
+            "period": r["period_label"],
+            "semester": r["semester"],
+            "value": r["value"],
+            "notes": r["notes"]
+        })
+
+    return {
+        "student_roll_no": roll_no.strip().upper(),
+        "records_count": len(rows),
+        "history": history_by_metric,
+        "has_history": len(rows) > 0
+    }
+
+
+@router.post("/mentor/ai-copilot")
+async def mentor_ai_copilot(
+    req: MentorAICopilotRequest,
+    current_user: dict = Depends(require_roles(["admin", "mentor", "tpo"]))
+):
+    """
+    AI Faculty Mentor Copilot endpoint.
+    Synthesizes real-time student telemetry, historical progression, risk bands,
+    and open interventions into an actionable briefing with human-in-the-loop
+    intervention recommendations ready for mentor approval.
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM students WHERE LOWER(roll_no) = LOWER(?)", (req.roll_no.strip(),))
+    student = c.fetchone()
+    if not student:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"Student record '{req.roll_no}' not found.")
+
+    student_data = dict(student)
+
+    # Fetch history
+    c.execute("""
+    SELECT metric_type, semester, period_label, value, notes
+    FROM student_history
+    WHERE LOWER(student_roll_no) = LOWER(?)
+    ORDER BY semester ASC
+    """, (req.roll_no.strip(),))
+    history_rows = [dict(r) for r in c.fetchall()]
+
+    # Fetch open interventions
+    c.execute("""
+    SELECT id, title, category, status, priority, due_date
+    FROM interventions
+    WHERE LOWER(student_roll_no) = LOWER(?)
+    ORDER BY id DESC
+    """, (req.roll_no.strip(),))
+    interventions = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    # Telemetry variables
+    cgpa = student_data.get("cgpa", 0.0)
+    attendance = student_data.get("overall_attendance_pct", 0.0)
+    backlogs = student_data.get("backlogs", 0)
+    coding = student_data.get("coding_skills", 0.0)
+    dsa = student_data.get("dsa_score", 0.0)
+    aptitude = student_data.get("aptitude_score", 0.0)
+    comm = student_data.get("communication_skills", 0.0)
+    lms = student_data.get("lms_assignment_completion_pct", 0.0)
+    acad_risk = student_data.get("academic_risk_band", "UNKNOWN")
+    plac_risk = student_data.get("placement_risk_band", "UNKNOWN")
+    score = student_data.get("success_score", 0.0)
+    name = student_data.get("full_name", req.roll_no)
+    dept = student_data.get("department", "Engineering")
+    semester = student_data.get("semester", 6)
+
+    # Calculate key risk drivers
+    drivers = []
+    if cgpa < 6.0:
+        drivers.append(f"Critical CGPA shortfall ({cgpa}/10.0) below the institutional academic probation threshold (6.0).")
+    elif cgpa < 7.5:
+        drivers.append(f"CGPA ({cgpa}/10.0) is in the moderate band, limiting eligibility for premier corporate campus drives.")
+
+    if attendance < 65.0:
+        drivers.append(f"Severe attendance deficit ({attendance}%), triggering mandatory academic debarment risk.")
+    elif attendance < 75.0:
+        drivers.append(f"Attendance ({attendance}%) is below the mandatory 75% university examination cutoff.")
+
+    if backlogs > 0:
+        drivers.append(f"Has {backlogs} active backlog(s), which directly de-qualifies candidate from 90% of tier-1 recruitment drives.")
+
+    if dsa < 6.0 or coding < 6.0:
+        drivers.append(f"Technical assessment scores (DSA: {dsa}/10, Coding: {coding}/10) trail competitive engineering benchmarks.")
+
+    if aptitude < 65.0:
+        drivers.append(f"Aptitude score ({aptitude}%) requires targeted practice for Day-1 technical screening assessments.")
+
+    if lms < 60.0:
+        drivers.append(f"LMS assignment submission rate ({lms}%) indicates low weekly academic engagement.")
+
+    if not drivers:
+        drivers.append("Strong baseline metrics across all academic, attendance, and technical criteria.")
+
+    # Analyze trajectory
+    cgpa_history = [r for r in history_rows if r.get("metric_type") == "cgpa"]
+    if len(cgpa_history) >= 2:
+        first_val = cgpa_history[0]["value"]
+        last_val = cgpa_history[-1]["value"]
+        diff = round(last_val - first_val, 2)
+        if diff < -0.3:
+            trajectory = f"Negative trajectory: CGPA has declined by {abs(diff)} points (from {first_val} to {last_val}) over past semesters."
+        elif diff > 0.3:
+            trajectory = f"Positive trajectory: CGPA has improved by +{diff} points (from {first_val} to {last_val}) indicating strong upward momentum."
+        else:
+            trajectory = f"Stable trajectory: CGPA has remained consistent ({first_val} -> {last_val}) across semesters."
+    else:
+        trajectory = "Single-semester baseline recorded. Ongoing semester evaluations will populate longitudinal trajectory."
+
+    # Recommended interventions for Human-In-The-Loop approval
+    recs = []
+    if backlogs > 0 or cgpa < 6.5:
+        recs.append({
+            "title": "Remedial Backlog Clearing Lab & Peer Study Group",
+            "category": "ACADEMIC",
+            "priority": "HIGH",
+            "due_in_days": 14,
+            "rationale": f"Student has {backlogs} backlog(s) and CGPA {cgpa}. Structured peer study will address foundational gaps before mid-terms."
+        })
+    if attendance < 75.0:
+        recs.append({
+            "title": "Bi-weekly Biometric Attendance Check-in & Counseling",
+            "category": "ATTENDANCE",
+            "priority": "HIGH" if attendance < 65.0 else "MEDIUM",
+            "due_in_days": 7,
+            "rationale": f"Attendance at {attendance}% risks exam debarment. Requires bi-weekly verification with mentor."
+        })
+    if dsa < 7.0 or coding < 7.0:
+        recs.append({
+            "title": "Targeted LeetCode 75 & DSA Problem-Solving Bootcamp",
+            "category": "SKILL",
+            "priority": "HIGH" if dsa < 5.5 else "MEDIUM",
+            "due_in_days": 21,
+            "rationale": f"Current DSA score ({dsa}/10) is below campus recruitment screening thresholds (7.0+)."
+        })
+    if aptitude < 70.0:
+        recs.append({
+            "title": "Quantitative & Logical Reasoning Aptitude Sprints",
+            "category": "PLACEMENT",
+            "priority": "MEDIUM",
+            "due_in_days": 14,
+            "rationale": f"Current aptitude score ({aptitude}%) requires dedicated practice sessions to clear Day-1 test rounds."
+        })
+
+    if not recs:
+        recs.append({
+            "title": "Advanced Competitive Hackathon & Honors Project Track",
+            "category": "SKILL",
+            "priority": "LOW",
+            "due_in_days": 30,
+            "rationale": "Student is performing well across benchmarks. Recommend advanced portfolio development."
+        })
+
+    meeting_agenda = [
+        f"Review current semester progress (CGPA: {cgpa}, Attendance: {attendance}%).",
+        "Examine specific obstacles contributing to identified risk drivers.",
+        "Agree on concrete target milestones for the recommended action items.",
+        "Schedule next 14-day check-in to monitor attendance and lab submissions."
+    ]
+
+    return {
+        "student_roll_no": req.roll_no.strip().upper(),
+        "student_name": name,
+        "department": dept,
+        "semester": semester,
+        "current_metrics": {
+            "cgpa": cgpa,
+            "attendance": attendance,
+            "backlogs": backlogs,
+            "coding_skills": coding,
+            "dsa_score": dsa,
+            "aptitude_score": aptitude,
+            "communication_skills": comm,
+            "lms_velocity": lms,
+            "success_score": score,
+            "academic_risk": acad_risk,
+            "placement_risk": plac_risk
+        },
+        "executive_summary": f"{name} ({dept}, Sem {semester}) holds an explainable Student Success Score of {score}/100. Academic risk is {acad_risk} and Placement risk is {plac_risk}. {trajectory}",
+        "trajectory": trajectory,
+        "key_risk_drivers": drivers,
+        "recommended_interventions": recs,
+        "meeting_agenda": meeting_agenda,
+        "active_interventions_count": len([i for i in interventions if i.get("status") != "COMPLETED"]),
+        "existing_interventions": interventions
+    }
+
+
+
+# =========================================================================
+# INSTITUTIONAL ACCOUNT APPROVAL WORKFLOW
+# =========================================================================
+
+class AccountApprovalActionRequest(BaseModel):
+    action: str  # "APPROVE" or "REJECT"
+    notes: Optional[str] = ""
+
+
+@router.get("/approvals/pending")
+async def get_pending_approvals(
+    status_filter: Optional[str] = Query("PENDING_APPROVAL", description="Status filter: PENDING_APPROVAL, ACTIVE, REJECTED, ALL"),
+    role_filter: Optional[str] = Query(None, description="Role filter: mentor, admin, tpo, student, ALL"),
+    current_user: dict = Depends(require_roles(["admin"]))
+):
+    """
+    Retrieves institutional user accounts pending administrator approval or historical records.
+    Accessible strictly to authorized administrators (Institution Officers).
+    Never exposes passwords, password hashes, or session tokens.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """
+    SELECT id, email, roll_no, full_name, first_name, last_name, phone_number,
+           role, role_label, department, status, created_at, updated_at
+    FROM users
+    WHERE 1=1
+    """
+    params = []
+
+    # Status filter
+    if status_filter and status_filter.upper() != "ALL":
+        query += " AND UPPER(status) = ?"
+        params.append(status_filter.upper())
+
+    # Role filter
+    if role_filter and role_filter.upper() != "ALL":
+        clean_rf = role_filter.lower().strip()
+        if "fac" in clean_rf or "mentor" in clean_rf:
+            query += " AND role = 'mentor'"
+        elif "inst" in clean_rf or "admin" in clean_rf or ("officer" in clean_rf and "plac" not in clean_rf):
+            query += " AND role = 'admin'"
+        elif "plac" in clean_rf or "tpo" in clean_rf:
+            query += " AND role = 'tpo'"
+        elif "stud" in clean_rf:
+            query += " AND role = 'student'"
+        else:
+            query += " AND role = ?"
+            params.append(clean_rf)
+
+    query += " ORDER BY CASE WHEN status = 'PENDING_APPROVAL' THEN 0 ELSE 1 END, created_at DESC, id DESC"
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    approvals = []
+    for r in rows:
+        fn = r["full_name"] or ""
+        first_n = r["first_name"] if ("first_name" in r.keys() and r["first_name"]) else (fn.split()[0] if fn else "")
+        last_n = r["last_name"] if ("last_name" in r.keys() and r["last_name"]) else (" ".join(fn.split()[1:]) if len(fn.split()) > 1 else "")
+        phone_n = r["phone_number"] if ("phone_number" in r.keys() and r["phone_number"]) else ""
+        approvals.append({
+            "id": r["id"],
+            "email": r["email"],
+            "roll_no": r["roll_no"],
+            "full_name": fn,
+            "first_name": first_n,
+            "last_name": last_n,
+            "phone_number": phone_n,
+            "role": r["role"],
+            "role_label": r["role_label"] or r["role"],
+            "department": r["department"] or "General",
+            "status": r["status"] if r["status"] else "ACTIVE",
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"]
+        })
+
+    # Summary statistics for tab counts
+    cursor.execute("""
+    SELECT 
+        SUM(CASE WHEN status = 'PENDING_APPROVAL' THEN 1 ELSE 0 END) as total_pending,
+        SUM(CASE WHEN status = 'PENDING_APPROVAL' AND role = 'mentor' THEN 1 ELSE 0 END) as pending_faculty,
+        SUM(CASE WHEN status = 'PENDING_APPROVAL' AND role = 'admin' THEN 1 ELSE 0 END) as pending_admin,
+        SUM(CASE WHEN status = 'PENDING_APPROVAL' AND role = 'tpo' THEN 1 ELSE 0 END) as pending_tpo,
+        SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as total_active,
+        SUM(CASE WHEN status = 'REJECTED' THEN 1 ELSE 0 END) as total_rejected
+    FROM users
+    """)
+    stats_row = cursor.fetchone()
+    conn.close()
+
+    counts = {
+        "total_pending": stats_row["total_pending"] or 0,
+        "pending_faculty": stats_row["pending_faculty"] or 0,
+        "pending_admin": stats_row["pending_admin"] or 0,
+        "pending_tpo": stats_row["pending_tpo"] or 0,
+        "total_active": stats_row["total_active"] or 0,
+        "total_rejected": stats_row["total_rejected"] or 0,
+    }
+
+    return {
+        "success": True,
+        "total": len(approvals),
+        "counts": counts,
+        "approvals": approvals
+    }
+
+
+@router.post("/approvals/{user_id}/action")
+async def process_account_approval(
+    user_id: int,
+    req: AccountApprovalActionRequest,
+    current_user: dict = Depends(require_roles(["admin"]))
+):
+    """
+    Approve or reject a user account.
+    Restricted strictly to authenticated administrators.
+    Atomically updates user status, ensures student record baseline if applicable,
+    and records an audit trail event.
+    """
+    action = req.action.strip().upper()
+    if action not in ["APPROVE", "REJECT"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid approval action. Must be 'APPROVE' or 'REJECT'."
+        )
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, email, full_name, role, role_label, department, roll_no, status FROM users WHERE id = ?", (user_id,))
+    target_user = cursor.fetchone()
+
+    if not target_user:
+        conn.close()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User account with ID {user_id} was not found."
+        )
+
+    # Approver self-protection: cannot alter own status
+    approver_sub = current_user.get("sub")
+    approver_email = current_user.get("email", "").lower()
+    if str(target_user["id"]) == str(approver_sub) or target_user["email"].lower() == approver_email:
+        conn.close()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Administrators cannot approve or reject their own account."
+        )
+
+    new_status = "ACTIVE" if action == "APPROVE" else "REJECTED"
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    cursor.execute("""
+    UPDATE users 
+    SET status = ?, updated_at = ?
+    WHERE id = ?
+    """, (new_status, now_iso, user_id))
+
+    # If approved user is a student, ensure student baseline record exists in students table
+    if new_status == "ACTIVE" and target_user["role"] == "student":
+        cursor.execute("SELECT roll_no FROM students WHERE user_id = ? OR roll_no = ?", (user_id, target_user["roll_no"]))
+        if not cursor.fetchone():
+            cursor.execute("""
+            INSERT INTO students (
+                roll_no, user_id, full_name, department, year, semester, cgpa, backlogs,
+                overall_attendance_pct, coding_skills, dsa_score, aptitude_score,
+                communication_skills, lms_assignment_completion_pct, success_score,
+                academic_risk_band, academic_risk_prob,
+                placement_risk_band, placement_risk_prob, record_type, assigned_mentor
+            ) VALUES (?, ?, ?, ?, '3rd Year', 6, 8.0, 0, 85.0, 7.5, 7.5, 75.0, 7.5, 80.0, 80.0, 'LOW', 0.15, 'LOW', 0.20, 'verified_profile', 'Prof. Rajesh Kumar')
+            """, (target_user["roll_no"], user_id, target_user["full_name"], target_user["department"]))
+
+    # Record persistent audit log
+    record_audit_log(
+        conn,
+        current_user.get("email", "admin@codebuffet.edu"),
+        current_user.get("role", "admin"),
+        f"ACCOUNT_{action}D",
+        "users",
+        str(user_id),
+        f"Admin {current_user.get('email')} {action.lower()}ed account {target_user['email']} ({target_user['role_label'] or target_user['role']}). Notes: {req.notes or 'None'}"
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": f"Account for {target_user['full_name']} ({target_user['email']}) has been successfully {action.lower()}ed.",
+        "user_id": user_id,
+        "email": target_user["email"],
+        "full_name": target_user["full_name"],
+        "role": target_user["role"],
+        "role_label": target_user["role_label"],
+        "status": new_status,
+        "updated_at": now_iso
     }

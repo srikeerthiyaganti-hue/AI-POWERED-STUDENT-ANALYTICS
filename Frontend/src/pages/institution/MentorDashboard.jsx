@@ -13,6 +13,9 @@ import {
   Target,
   Plus,
   Eye,
+  Bot,
+  Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -42,6 +45,11 @@ export default function MentorDashboard() {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
+  const [copilotModalOpen, setCopilotModalOpen] = useState(false);
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const [copilotData, setCopilotData] = useState(null);
+  const [approvedRecs, setApprovedRecs] = useState({});
+  const [copilotError, setCopilotError] = useState('');
 
   // Live Backend Data States
   const [mentees, setMentees] = useState([]);
@@ -49,6 +57,14 @@ export default function MentorDashboard() {
   const [isLiveApi, setIsLiveApi] = useState(false);
   const [submittingTask, setSubmittingTask] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Pagination & Filtering States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalMentees, setTotalMentees] = useState(20447);
+  const [totalPages, setTotalPages] = useState(409);
+  const [cohortFilter, setCohortFilter] = useState('all'); // 'all' | 'verified_profile' | 'high_risk'
+  const [verifiedCount, setVerifiedCount] = useState(3);
+  const [cohortCount, setCohortCount] = useState(20444);
 
   // New Task Form State
   const [newTaskRoll, setNewTaskRoll] = useState('STU-2024-001');
@@ -168,6 +184,43 @@ export default function MentorDashboard() {
       await api.toggleInstitutionIntervention(id);
     } catch {
       // Fallback
+    }
+  };
+
+  const handleOpenCopilot = async (student) => {
+    setCopilotModalOpen(true);
+    setCopilotLoading(true);
+    setCopilotError('');
+    try {
+      const res = await api.askMentorCopilot(student.id || student.roll_no);
+      setCopilotData(res);
+    } catch (err) {
+      setCopilotError(err.message || 'Failed to generate mentor copilot briefing.');
+    } finally {
+      setCopilotLoading(false);
+    }
+  };
+
+  const handleApproveCopilotIntervention = async (rec) => {
+    if (!copilotData) return;
+    try {
+      const payload = {
+        student_roll_no: copilotData.student_roll_no,
+        student_name: copilotData.student_name,
+        department: copilotData.department || 'Computer Science & Engineering',
+        title: rec.title,
+        category: rec.category || 'ACADEMIC',
+        priority: rec.priority || 'HIGH',
+        assigned_mentor: currentUser?.name || currentUser?.full_name || 'Prof. Rajesh Kumar',
+        due_date: `In ${rec.due_in_days || 14} Days`,
+      };
+      const res = await api.createIntervention(payload);
+      if (res?.id) {
+        setInterventions((prev) => [{ ...payload, id: res.id, status: 'OPEN' }, ...prev]);
+        setApprovedRecs((prev) => ({ ...prev, [rec.title]: true }));
+      }
+    } catch (err) {
+      console.error('Failed to approve intervention:', err);
     }
   };
 
@@ -652,11 +705,11 @@ export default function MentorDashboard() {
                   </div>
                   <div>
                     <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>
-                      {loading ? '...' : mentees.length}
+                      {loading ? '...' : totalMentees.toLocaleString()}
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>Assigned CSE Mentees</div>
                     <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700, marginTop: '2px' }}>
-                      3rd & 4th Year Cohort
+                      {verifiedCount} Verified Enrolled • {cohortCount.toLocaleString()} Benchmark Mentees
                     </div>
                   </div>
                 </div>
@@ -963,14 +1016,66 @@ export default function MentorDashboard() {
                 padding: '1.5rem',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '8px' }}>
                 <div>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Assigned CSE Mentees Roster</h3>
                   <span style={{ fontSize: '0.78rem', color: '#64748B' }}>Individual telemetry, academic risk score, and LMS assignment velocity</span>
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                  Showing {filteredMentees.length} mentees
+                  Showing Page {currentPage} of {totalPages} ({totalMentees.toLocaleString()} total assigned)
                 </div>
+              </div>
+
+              {/* Filter Pills */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => { setCohortFilter('all'); setCurrentPage(1); }}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '20px',
+                    border: `1.5px solid ${cohortFilter === 'all' ? '#1E6BFF' : '#E2E8F0'}`,
+                    backgroundColor: cohortFilter === 'all' ? '#EFF6FF' : 'transparent',
+                    color: cohortFilter === 'all' ? '#1E6BFF' : '#64748B',
+                    fontWeight: 600,
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  All Assigned Mentees ({totalMentees.toLocaleString()})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCohortFilter('verified_profile'); setCurrentPage(1); }}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '20px',
+                    border: `1.5px solid ${cohortFilter === 'verified_profile' ? '#10B981' : '#E2E8F0'}`,
+                    backgroundColor: cohortFilter === 'verified_profile' ? '#ECFDF5' : 'transparent',
+                    color: cohortFilter === 'verified_profile' ? '#059669' : '#64748B',
+                    fontWeight: 600,
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Verified Enrolled Cohort ({verifiedCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCohortFilter('high_risk'); setCurrentPage(1); }}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '20px',
+                    border: `1.5px solid ${cohortFilter === 'high_risk' ? '#EF4444' : '#E2E8F0'}`,
+                    backgroundColor: cohortFilter === 'high_risk' ? '#FEF2F2' : 'transparent',
+                    color: cohortFilter === 'high_risk' ? '#DC2626' : '#64748B',
+                    fontWeight: 600,
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  High Academic Risk
+                </button>
               </div>
 
               <div style={{ overflowX: 'auto' }}>
@@ -1059,6 +1164,26 @@ export default function MentorDashboard() {
                           </td>
                           <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                             <button
+                              onClick={() => handleOpenCopilot(s)}
+                              style={{
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                backgroundColor: '#8B5CF6',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                fontSize: '0.76rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                marginRight: '6px',
+                              }}
+                            >
+                              <Bot size={13} />
+                              <span>AI Copilot</span>
+                            </button>
+                            <button
                               onClick={() => setSelectedStudent(s)}
                               style={{
                                 padding: '5px 10px',
@@ -1079,6 +1204,66 @@ export default function MentorDashboard() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Pagination Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingTop: '1rem',
+                  borderTop: `1px solid ${isDarkMode ? '#334155' : '#F1F5F9'}`,
+                  marginTop: '1rem',
+                  fontSize: '0.82rem',
+                  color: '#64748B',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                }}
+              >
+                <div>
+                  Showing {totalMentees > 0 ? (currentPage - 1) * 50 + 1 : 0} to{' '}
+                  {Math.min(currentPage * 50, totalMentees)} of {totalMentees.toLocaleString()} assigned mentees
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1 || loading}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #CBD5E1',
+                      backgroundColor: '#FFFFFF',
+                      color: '#334155',
+                      fontWeight: 600,
+                      cursor: currentPage <= 1 || loading ? 'not-allowed' : 'pointer',
+                      opacity: currentPage <= 1 || loading ? 0.5 : 1,
+                    }}
+                  >
+                    Previous
+                  </button>
+                  <span style={{ fontWeight: 600, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages || loading}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #CBD5E1',
+                      backgroundColor: '#FFFFFF',
+                      color: '#334155',
+                      fontWeight: 600,
+                      cursor: currentPage >= totalPages || loading ? 'not-allowed' : 'pointer',
+                      opacity: currentPage >= totalPages || loading ? 0.5 : 1,
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
 
               {/* Selected Mentee Diagnostic Card */}
@@ -1118,6 +1303,204 @@ export default function MentorDashboard() {
           </main>
         </div>
       </div>
+
+      {/* AI FACULTY MENTOR COPILOT MODAL */}
+      {copilotModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 110,
+            padding: '1.5rem',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '680px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '1.75rem',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+              border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#F3E8FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B5CF6' }}>
+                  <Bot size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>AI Faculty Mentor Copilot</h3>
+                  <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                    Telemetry-grounded mentee diagnostic & Human-in-the-Loop intervention approval
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setCopilotModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {copilotLoading ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: '#64748B' }}>
+                <Loader2 size={32} className="spin" style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                <div style={{ fontWeight: 600, fontSize: '0.90rem' }}>Analyzing student longitudinal telemetry...</div>
+                <div style={{ fontSize: '0.76rem', color: '#94A3B8', marginTop: '4px' }}>Evaluating academic risk precedence, coding velocity & attendance trends</div>
+              </div>
+            ) : copilotError ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#DC2626' }}>
+                <AlertTriangle size={32} style={{ margin: '0 auto 8px' }} />
+                <div style={{ fontWeight: 600 }}>{copilotError}</div>
+              </div>
+            ) : copilotData ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Student Header Summary */}
+                <div
+                  style={{
+                    backgroundColor: isDarkMode ? '#0F172A' : '#FAF5FF',
+                    border: '1px solid #E9D5FF',
+                    borderRadius: '12px',
+                    padding: '1rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#581C87' }}>
+                      {copilotData.student_name} ({copilotData.student_roll_no})
+                    </div>
+                    <span style={{ fontSize: '0.74rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: '#8B5CF6', color: '#FFFFFF', fontWeight: 700 }}>
+                      Success Score: {copilotData.current_metrics?.success_score}/100
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.80rem', color: isDarkMode ? '#E2E8F0' : '#374151', lineHeight: 1.5 }}>
+                    {copilotData.executive_summary}
+                  </div>
+                </div>
+
+                {/* Key Risk Drivers */}
+                <div>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.88rem', fontWeight: 700, color: '#DC2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangle size={16} /> Key Risk Drivers
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {copilotData.key_risk_drivers?.map((driver, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          fontSize: '0.80rem',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: isDarkMode ? '#0F172A' : '#FEF2F2',
+                          border: '1px solid #FEE2E2',
+                          color: isDarkMode ? '#FCA5A5' : '#991B1B',
+                        }}
+                      >
+                        • {driver}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recommended Interventions (Human-in-the-loop approval) */}
+                <div>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.88rem', fontWeight: 700, color: '#1E6BFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Target size={16} /> Prescribed Remedial Interventions (Human-In-The-Loop Approval)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {copilotData.recommended_interventions?.map((rec, idx) => {
+                      const isApproved = approvedRecs[rec.title];
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: '12px 14px',
+                            borderRadius: '10px',
+                            backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+                            border: `1px solid ${isApproved ? '#86EFAC' : (isDarkMode ? '#334155' : '#E2E8F0')}`,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '12px',
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.86rem' }}>{rec.title}</span>
+                              <span
+                                style={{
+                                  fontSize: '0.66rem',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  fontWeight: 700,
+                                  backgroundColor: rec.priority === 'HIGH' ? '#FEF2F2' : '#EFF6FF',
+                                  color: rec.priority === 'HIGH' ? '#DC2626' : '#1E6BFF',
+                                }}
+                              >
+                                {rec.priority} PRIORITY
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.76rem', color: '#64748B' }}>{rec.rationale}</div>
+                          </div>
+
+                          <button
+                            onClick={() => handleApproveCopilotIntervention(rec)}
+                            disabled={isApproved}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              cursor: isApproved ? 'default' : 'pointer',
+                              backgroundColor: isApproved ? '#10B981' : '#1E6BFF',
+                              color: '#FFFFFF',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {isApproved ? (
+                              <>
+                                <CheckCircle2 size={14} />
+                                <span>Approved</span>
+                              </>
+                            ) : (
+                              'Approve & Create'
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 1:1 Meeting Agenda */}
+                <div>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '0.84rem', fontWeight: 700, color: '#475569' }}>
+                    1:1 Meeting Discussion Talking Points
+                  </h4>
+                  <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.78rem', color: '#64748B', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {copilotData.meeting_agenda?.map((point, idx) => (
+                      <li key={idx}>{point}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {/* CREATE REMEDIAL TASK MODAL */}
       {createTaskModalOpen && (

@@ -4,7 +4,7 @@
  * error normalization, and offline resiliency.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 function getAuthHeader() {
   const token = sessionStorage.getItem('codebuffet_access_token');
@@ -47,6 +47,13 @@ export const api = {
   checkHealth: () => request('/api/health'),
 
   // Authentication
+  register: async (registrationData) => {
+    return request('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(registrationData),
+    });
+  },
+
   login: async (identifier, password, role) => {
     const data = await request('/api/auth/login', {
       method: 'POST',
@@ -71,6 +78,13 @@ export const api = {
 
   getMe: () => request('/api/auth/me'),
 
+  updateStudentProfile: async (profileData) => {
+    return request('/api/student/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  },
+
   // Institution Endpoints
   getInstitutionSummary: () => request('/api/institution/summary'),
   getCohortAnalytics: () => request('/api/institution/analytics/cohort'),
@@ -78,7 +92,6 @@ export const api = {
   getInstitutionTrends: (range) => request(`/api/institution/trends?range_filter=${encodeURIComponent(range || 'Last 6 Months')}`),
   
   getInstitutionStudents: (options = {}) => {
-    // Supports both legacy argument list or options object
     let paramsObj = {};
     if (typeof options === 'string') {
       paramsObj = { search: options };
@@ -102,7 +115,7 @@ export const api = {
     if (paramsObj.sortBy) params.append('sort_by', paramsObj.sortBy);
     if (paramsObj.sortOrder) params.append('sort_order', paramsObj.sortOrder);
     if (paramsObj.page) params.append('page', paramsObj.page);
-    if (paramsObj.pageSize) params.append('page_size', paramsObj.pageSize);
+    if (paramsObj.pageSize || paramsObj.page_size) params.append('page_size', paramsObj.pageSize || paramsObj.page_size);
     if (paramsObj.limit) params.append('limit', paramsObj.limit);
 
     const qs = params.toString() ? `?${params.toString()}` : '';
@@ -123,6 +136,8 @@ export const api = {
     const params = new URLSearchParams();
     if (options.search) params.append('search', options.search);
     if (options.riskBand) params.append('risk_band', options.riskBand);
+    if (options.academicRisk) params.append('academic_risk', options.academicRisk);
+    if (options.placementRisk) params.append('placement_risk', options.placementRisk);
     if (options.department) params.append('department', options.department);
     if (options.mentor) params.append('mentor', options.mentor);
     if (options.recordType) params.append('record_type', options.recordType);
@@ -136,6 +151,8 @@ export const api = {
     const params = new URLSearchParams();
     if (options.search) params.append('search', options.search);
     if (options.riskBand) params.append('risk_band', options.riskBand);
+    if (options.academicRisk) params.append('academic_risk', options.academicRisk);
+    if (options.placementRisk) params.append('placement_risk', options.placementRisk);
     if (options.department) params.append('department', options.department);
     if (options.mentor) params.append('mentor', options.mentor);
     if (options.recordType) params.append('record_type', options.recordType);
@@ -198,11 +215,51 @@ export const api = {
       body: JSON.stringify({ roll_no: rollNo, mentor_name: mentorName }),
     }),
 
+  getInstitutionStudentHistory: (rollNo) =>
+    request(`/api/institution/students/${encodeURIComponent(rollNo)}/history`),
+
+  askMentorCopilot: (rollNo, action = 'analyze') =>
+    request('/api/institution/mentor/ai-copilot', {
+      method: 'POST',
+      body: JSON.stringify({ roll_no: rollNo, action }),
+    }),
+
+  // Institutional Account Approval Workflow (Admin-only)
+  getPendingApprovals: (status = 'PENDING_APPROVAL', role = '') => {
+    const params = new URLSearchParams();
+    if (status) params.append('status_filter', status);
+    if (role) params.append('role_filter', role);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request(`/api/institution/approvals/pending${qs}`);
+  },
+
+  processAccountApproval: (userId, action, notes = '') =>
+    request(`/api/institution/approvals/${userId}/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action, notes }),
+    }),
+
   // Student Endpoints
   getStudentDashboard: (rollNo) => {
     const query = rollNo ? `?roll_no=${encodeURIComponent(rollNo)}` : '';
     return request(`/api/student/dashboard${query}`);
   },
+
+  getStudentHistory: (rollNo) => {
+    const query = rollNo ? `?roll_no=${encodeURIComponent(rollNo)}` : '';
+    return request(`/api/student/history${query}`);
+  },
+
+  getStudentTasks: (rollNo) => {
+    const query = rollNo ? `?roll_no=${encodeURIComponent(rollNo)}` : '';
+    return request(`/api/student/tasks${query}`);
+  },
+
+  updateStudentTaskStatus: (taskId, status, notes = '') =>
+    request(`/api/student/tasks/${taskId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status, notes }),
+    }),
 
   simulateStudentScore: (params) =>
     request('/api/student/simulate', {
@@ -214,6 +271,43 @@ export const api = {
     request(`/api/student/tasks/${taskId}/toggle`, {
       method: 'POST',
     }),
+
+  askStudentAI: (question, whatIfContext = null) =>
+    request('/api/student/ai-assistant', {
+      method: 'POST',
+      body: JSON.stringify({ question, what_if_context: whatIfContext }),
+    }),
+
+  // Placement Endpoints
+  getPlacementJobs: () => request('/api/placement/jobs'),
+
+  createPlacementJob: (jobData) =>
+    request('/api/placement/jobs', {
+      method: 'POST',
+      body: JSON.stringify(jobData),
+    }),
+
+  getPlacementPipeline: (jobId = null, stage = null) => {
+    const params = new URLSearchParams();
+    if (jobId) params.append('job_id', jobId);
+    if (stage) params.append('stage', stage);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request(`/api/placement/pipeline${qs}`);
+  },
+
+  updatePlacementStage: (applicationId, stage, notes = '') =>
+    request('/api/placement/pipeline/stage', {
+      method: 'POST',
+      body: JSON.stringify({ application_id: applicationId, stage, notes }),
+    }),
+
+  matchCandidateToJob: (jobId, studentRollNo) =>
+    request('/api/placement/match', {
+      method: 'POST',
+      body: JSON.stringify({ job_id: jobId, student_roll_no: studentRollNo }),
+    }),
+
+  getPlacementAnalytics: () => request('/api/placement/analytics'),
 };
 
 export default api;

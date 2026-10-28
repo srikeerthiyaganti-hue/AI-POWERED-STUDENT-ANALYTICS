@@ -6,92 +6,146 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Info,
   Building2,
   GraduationCap,
+  Briefcase,
+  Award,
   ShieldCheck,
   CheckCircle,
   HelpCircle,
   Sparkles,
-  Server,
   AlertCircle,
   KeyRound,
+  UserCheck,
+  Loader2,
 } from 'lucide-react';
 import BrandLogo from '../../components/common/BrandLogo';
 import { useAuth } from '../../context/AuthContext';
+
+const DEMO_ROLES = [
+  {
+    key: 'admin',
+    portalRole: 'admin',
+    label: 'Institution Officer',
+    badge: 'DEMO',
+    name: 'Dr. R. Kumar',
+    email: 'admin@codebuffet.edu',
+    password: 'CodeBuffet@2026!',
+    icon: Building2,
+    color: '#2563EB',
+    desc: 'Campus executive analytics, 50k cohort distribution & institutional policy',
+  },
+  {
+    key: 'student',
+    portalRole: 'student',
+    label: 'Student',
+    badge: 'DEMO',
+    name: 'Aarav Sharma',
+    email: 'STU-2024-042',
+    password: 'Student@2026!',
+    icon: GraduationCap,
+    color: '#10B981',
+    desc: 'Personal success cockpit, academic risk factors, What-If simulation & AI assistant',
+  },
+  {
+    key: 'mentor',
+    portalRole: 'admin',
+    label: 'Faculty',
+    badge: 'DEMO',
+    name: 'Prof. Rajesh Kumar',
+    email: 'rajesh.kumar@codebuffet.edu',
+    password: 'Mentor@2026!',
+    icon: Award,
+    color: '#8B5CF6',
+    desc: 'Mentee caseload monitoring, intervention tasks & AI academic copilot',
+  },
+  {
+    key: 'tpo',
+    portalRole: 'admin',
+    label: 'Placement Officer',
+    badge: 'DEMO',
+    name: 'Vikram Malhotra',
+    email: 'vikram.tpo@codebuffet.edu',
+    password: 'TPO@2026!',
+    icon: Briefcase,
+    color: '#F59E0B',
+    desc: 'Placement pipeline, eligibility matching & company recruitment funnel',
+  },
+];
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, authLoading, backendStatus } = useAuth();
 
-  const [portal, setPortal] = useState('institution'); // 'institution' | 'student'
-  const [identifier, setIdentifier] = useState('admin@codebuffet.edu');
-  const [password, setPassword] = useState('CodeBuffet@2026!');
+  // Mode: 'demo' | 'real'
+  const [loginMode, setLoginMode] = useState('demo');
+
+  // Real Account Form States (strictly empty defaults)
+  const [realPortal, setRealPortal] = useState('institution'); // 'institution' | 'student'
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+
+  // Demo Account States
+  const [selectedDemoKey, setSelectedDemoKey] = useState('admin');
+  const [demoIdentifier, setDemoIdentifier] = useState(DEMO_ROLES[0].email);
+  const [demoPassword, setDemoPassword] = useState(DEMO_ROLES[0].password);
+
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
 
-  // Switch portal and populate sensible defaults
-  const handlePortalSwitch = (newPortal) => {
-    setPortal(newPortal);
+  // Switch between Demo and Real account modes
+  const handleModeChange = (mode) => {
+    setLoginMode(mode);
     setError('');
-    if (newPortal === 'student') {
-      setIdentifier('STU-2024-042');
-      setPassword('Student@2026!');
+    if (mode === 'real') {
+      setIdentifier('');
+      setPassword('');
     } else {
-      setIdentifier('admin@codebuffet.edu');
-      setPassword('CodeBuffet@2026!');
+      const activeDemo = DEMO_ROLES.find((d) => d.key === selectedDemoKey) || DEMO_ROLES[0];
+      setDemoIdentifier(activeDemo.email);
+      setDemoPassword(activeDemo.password);
     }
   };
 
-  // Helper to prefill verified demo credentials into the form
-  const handleQuickFill = (roleKey) => {
+  // Demo Role Card selection
+  const handleSelectDemoRole = (roleItem) => {
+    setSelectedDemoKey(roleItem.key);
+    setDemoIdentifier(roleItem.email);
+    setDemoPassword(roleItem.password);
     setError('');
-    if (roleKey === 'admin') {
-      setPortal('institution');
-      setIdentifier('admin@codebuffet.edu');
-      setPassword('CodeBuffet@2026!');
-    } else if (roleKey === 'student') {
-      setPortal('student');
-      setIdentifier('STU-2024-042');
-      setPassword('Student@2026!');
-    } else if (roleKey === 'mentor') {
-      setPortal('institution');
-      setIdentifier('rajesh.kumar@codebuffet.edu');
-      setPassword('Mentor@2026!');
-    } else if (roleKey === 'tpo') {
-      setPortal('institution');
-      setIdentifier('vikram.tpo@codebuffet.edu');
-      setPassword('TPO@2026!');
-    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Execute Login
+  const handleLoginSubmit = async (e, isDemo = false) => {
+    if (e) e.preventDefault();
     setError('');
 
-    const cleanId = identifier.trim();
-    const cleanPass = password.trim();
+    const targetId = isDemo ? demoIdentifier.trim() : identifier.trim();
+    const targetPass = isDemo ? demoPassword.trim() : password.trim();
 
-    if (!cleanId) {
+    if (!targetId) {
       setError(
-        portal === 'student'
+        realPortal === 'student'
           ? 'Please enter your Registration Number or Student Email.'
           : 'Please enter your Institutional Email or Employee ID.'
       );
       return;
     }
 
-    if (!cleanPass) {
+    if (!targetPass) {
       setError('Please enter your password.');
       return;
     }
 
+    const activeDemo = DEMO_ROLES.find((d) => d.key === selectedDemoKey);
+    const targetRole = isDemo ? activeDemo?.portalRole || 'admin' : (realPortal === 'student' ? 'student' : 'admin');
+
     setSubmitting(true);
     try {
-      const res = await login(cleanId, cleanPass, portal === 'student' ? 'student' : 'admin');
+      const res = await login(targetId, targetPass, targetRole);
       if (res?.user) {
         if (res.user.role === 'student') {
           navigate('/student/dashboard');
@@ -110,6 +164,8 @@ export default function LoginPage() {
     }
   };
 
+  const selectedDemoMeta = DEMO_ROLES.find((d) => d.key === selectedDemoKey) || DEMO_ROLES[0];
+
   return (
     <div
       style={{
@@ -118,16 +174,17 @@ export default function LoginPage() {
         backgroundColor: '#FFFFFF',
         position: 'relative',
         overflow: 'hidden',
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif',",
       }}
       className="login-container"
     >
       {/* =========================================================================
-          LEFT SIDE: AUTHENTICATION FORM & DEMO CONTROLS
+          LEFT SIDE: AUTHENTICATION FORM & DEMO / REAL CONTROLS
           ========================================================================= */}
       <div
         style={{
           flex: '1 1 50%',
-          maxWidth: '640px',
+          maxWidth: '680px',
           padding: '2.5rem 3.5rem',
           display: 'flex',
           flexDirection: 'column',
@@ -140,9 +197,9 @@ export default function LoginPage() {
         {/* Top Header: Nav controls */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
           <Link
-            to="/"
+            to="/platform"
             style={{
-              color: 'var(--color-navy)',
+              color: 'var(--color-navy, #0F172A)',
               textDecoration: 'none',
               fontWeight: 600,
               fontSize: '0.88rem',
@@ -151,14 +208,14 @@ export default function LoginPage() {
               gap: '4px',
             }}
           >
-            ← Home
+            ← Platform Overview
           </Link>
           <button
             onClick={() => setShowResetModal(true)}
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--color-text-secondary)',
+              color: 'var(--color-text-secondary, #64748B)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
@@ -167,19 +224,20 @@ export default function LoginPage() {
             }}
           >
             <HelpCircle size={15} />
-            <span>Security Help</span>
+            <span>Security Policy</span>
           </button>
         </div>
 
         {/* Center Main Form */}
-        <div style={{ maxWidth: '440px', width: '100%', margin: '0 auto' }}>
-          {/* Centered Brand Logo on Entry Screen */}
+        <div style={{ maxWidth: '500px', width: '100%', margin: '0 auto' }}>
+          {/* Centered Brand Logo */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem', textAlign: 'center' }}>
             <BrandLogo variant="light" size="large" />
-            <div style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+            <div style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: '#64748B', fontWeight: 600 }}>
               Student Success Intelligence Platform
             </div>
           </div>
+
           {/* Eyebrow & Live Backend Badge */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
             <div
@@ -188,7 +246,7 @@ export default function LoginPage() {
                 fontWeight: 700,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
-                color: 'var(--color-blue-primary)',
+                color: '#2563EB',
               }}
             >
               SECURE ACCESS
@@ -208,44 +266,45 @@ export default function LoginPage() {
               }}
             >
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: backendStatus === 'connected' ? '#10B981' : '#F59E0B' }} />
-              <span>{backendStatus === 'connected' ? 'FastAPI Backend Online' : 'Checking API...'}</span>
+              <span>{backendStatus === 'connected' ? 'FastAPI Backend Online' : 'Checking Backend...'}</span>
             </div>
           </div>
 
           {/* Heading */}
           <h1
             style={{
-              fontFamily: 'var(--font-serif)',
-              fontSize: '2.1rem',
+              fontFamily: 'var(--font-serif, serif)',
+              fontSize: '2rem',
               fontWeight: 700,
-              color: 'var(--color-navy)',
+              color: '#0F172A',
               lineHeight: 1.15,
-              marginBottom: '0.4rem',
+              marginBottom: '0.3rem',
             }}
           >
-            Welcome to CODEBUFFET<span style={{ color: 'var(--color-blue-bright)' }}>.</span>
+            Welcome to CODEBUFFET<span style={{ color: '#2563EB' }}>.</span>
           </h1>
 
-          {/* Subtitle */}
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.92rem', marginBottom: '1.5rem' }}>
-            Analytics & AI-Powered Student Success Platform
+          <p style={{ color: '#64748B', fontSize: '0.90rem', marginBottom: '1.25rem' }}>
+            Sign in to access personalized student telemetry and predictive risk analytics.
           </p>
 
-          {/* Portal Switcher Tabs */}
+          {/* =========================================================================
+              TWO MODES TOGGLE: DEMO ACCOUNT | REAL ACCOUNT
+              ========================================================================= */}
           <div
             style={{
               display: 'flex',
-              backgroundColor: 'var(--color-bg-page)',
-              border: '1px solid var(--color-border)',
+              backgroundColor: '#F1F5F9',
+              border: '1px solid #E2E8F0',
               padding: '4px',
-              borderRadius: 'var(--radius-sm)',
-              gap: '6px',
+              borderRadius: '8px',
+              gap: '4px',
               marginBottom: '1.25rem',
             }}
           >
             <button
               type="button"
-              onClick={() => handlePortalSwitch('institution')}
+              onClick={() => handleModeChange('demo')}
               style={{
                 flex: 1,
                 display: 'inline-flex',
@@ -253,24 +312,24 @@ export default function LoginPage() {
                 justifyContent: 'center',
                 gap: '8px',
                 padding: '9px 12px',
-                borderRadius: 'var(--radius-xs)',
+                borderRadius: '6px',
                 border: 'none',
                 fontSize: '0.86rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                backgroundColor: portal === 'institution' ? 'var(--color-blue-primary)' : 'transparent',
-                color: portal === 'institution' ? '#FFFFFF' : 'var(--color-navy)',
-                boxShadow: portal === 'institution' ? '0 1px 3px rgba(22, 119, 210, 0.3)' : 'none',
-                transition: 'all var(--transition-fast)',
+                backgroundColor: loginMode === 'demo' ? '#2563EB' : 'transparent',
+                color: loginMode === 'demo' ? '#FFFFFF' : '#475569',
+                boxShadow: loginMode === 'demo' ? '0 1px 3px rgba(37,99,235,0.3)' : 'none',
+                transition: 'all 0.15s ease',
               }}
             >
-              <Building2 size={16} />
-              <span>Institution Portal</span>
+              <Sparkles size={16} />
+              <span>Demo Account Mode</span>
             </button>
 
             <button
               type="button"
-              onClick={() => handlePortalSwitch('student')}
+              onClick={() => handleModeChange('real')}
               style={{
                 flex: 1,
                 display: 'inline-flex',
@@ -278,19 +337,19 @@ export default function LoginPage() {
                 justifyContent: 'center',
                 gap: '8px',
                 padding: '9px 12px',
-                borderRadius: 'var(--radius-xs)',
+                borderRadius: '6px',
                 border: 'none',
                 fontSize: '0.86rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                backgroundColor: portal === 'student' ? 'var(--color-blue-primary)' : 'transparent',
-                color: portal === 'student' ? '#FFFFFF' : 'var(--color-navy)',
-                boxShadow: portal === 'student' ? '0 1px 3px rgba(22, 119, 210, 0.3)' : 'none',
-                transition: 'all var(--transition-fast)',
+                backgroundColor: loginMode === 'real' ? '#2563EB' : 'transparent',
+                color: loginMode === 'real' ? '#FFFFFF' : '#475569',
+                boxShadow: loginMode === 'real' ? '0 1px 3px rgba(37,99,235,0.3)' : 'none',
+                transition: 'all 0.15s ease',
               }}
             >
-              <GraduationCap size={16} />
-              <span>Student Portal</span>
+              <UserCheck size={16} />
+              <span>Real Account Mode</span>
             </button>
           </div>
 
@@ -315,291 +374,496 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-            {/* Identifier Field */}
+          {/* =========================================================================
+              MODE 1: DEMO ACCOUNT (4 Role Cards & Verified Review)
+              ========================================================================= */}
+          {loginMode === 'demo' ? (
             <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  color: 'var(--color-navy)',
-                  marginBottom: '5px',
-                }}
-              >
-                {portal === 'student' ? 'Registration Number or Student Email' : 'Institutional Email or Staff ID'}
-              </label>
-              <div style={{ position: 'relative' }}>
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--color-text-secondary)',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  {portal === 'student' ? <GraduationCap size={17} /> : <Mail size={17} />}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+                  Select an Evaluator Demo Persona:
                 </div>
-                <input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={portal === 'student' ? 'e.g. STU-2026-018' : 'e.g. admin@codebuffet.edu'}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 0.75rem 0.75rem 2.45rem',
-                    fontSize: '0.9rem',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-sm)',
-                    backgroundColor: '#FFFFFF',
-                    color: 'var(--color-text-main)',
-                    outline: 'none',
-                    transition: 'border-color var(--transition-fast)',
-                  }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--color-blue-primary)')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
-                />
+                <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                  Uses demonstration synthetic cohort
+                </div>
               </div>
-            </div>
 
-            {/* Password Field */}
-            <div>
-              <label
+              {/* 4 Demo Role Cards */}
+              <div
                 style={{
-                  display: 'block',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  color: 'var(--color-navy)',
-                  marginBottom: '5px',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '10px',
+                  marginBottom: '16px',
                 }}
               >
-                Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: 'var(--color-text-secondary)',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  <Lock size={17} />
+                {DEMO_ROLES.map((r) => {
+                  const Icon = r.icon;
+                  const isSelected = selectedDemoKey === r.key;
+                  return (
+                    <div
+                      key={r.key}
+                      onClick={() => handleSelectDemoRole(r)}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '10px',
+                        border: `1.5px solid ${isSelected ? r.color : '#E2E8F0'}`,
+                        backgroundColor: isSelected ? `${r.color}0D` : '#F8FAFC',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <div
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            backgroundColor: `${r.color}15`,
+                            color: r.color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Icon size={16} />
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '0.66rem',
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            backgroundColor: isSelected ? r.color : '#E2E8F0',
+                            color: isSelected ? '#FFFFFF' : '#475569',
+                          }}
+                        >
+                          {r.badge}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', marginBottom: '2px' }}>
+                        {r.label}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {r.name}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Verified Credentials Review & Sign-in Box */}
+              <div
+                style={{
+                  padding: '16px',
+                  borderRadius: '10px',
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#F8FAFC',
+                  marginBottom: '16px',
+                }}
+              >
+                <div style={{ fontSize: '0.76rem', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
+                  Active Demo Credentials (Authenticates with Live Backend):
                 </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 2.5rem 0.75rem 2.45rem',
-                    fontSize: '0.9rem',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-sm)',
-                    backgroundColor: '#FFFFFF',
-                    color: 'var(--color-text-main)',
-                    outline: 'none',
-                    transition: 'border-color var(--transition-fast)',
-                  }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--color-blue-primary)')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--color-border)')}
-                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: '#64748B', marginBottom: '2px' }}>
+                      Login Identifier
+                    </label>
+                    <input
+                      type="text"
+                      value={demoIdentifier}
+                      readOnly
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        fontSize: '0.80rem',
+                        borderRadius: '6px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: '#FFFFFF',
+                        color: '#0F172A',
+                        fontWeight: 600,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.72rem', color: '#64748B', marginBottom: '2px' }}>
+                      Password
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={demoPassword}
+                        readOnly
+                        style={{
+                          width: '100%',
+                          padding: '6px 28px 6px 8px',
+                          fontSize: '0.80rem',
+                          borderRadius: '6px',
+                          border: '1px solid #CBD5E1',
+                          backgroundColor: '#FFFFFF',
+                          color: '#0F172A',
+                          fontWeight: 600,
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '6px',
+                          top: '6px',
+                          background: 'none',
+                          border: 'none',
+                          color: '#64748B',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => handleLoginSubmit(null, true)}
+                  disabled={submitting || authLoading}
                   style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
+                    width: '100%',
+                    padding: '11px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: selectedDemoMeta.color,
+                    color: '#FFFFFF',
+                    fontWeight: 600,
+                    fontSize: '0.90rem',
+                    cursor: submitting || authLoading ? 'not-allowed' : 'pointer',
+                    opacity: submitting || authLoading ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  {submitting || authLoading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Authenticating {selectedDemoMeta.label}...
+                    </>
+                  ) : (
+                    <>
+                      Sign In as Demo {selectedDemoMeta.label} <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Mode Switch Helper */}
+              <div style={{ textAlign: 'center', fontSize: '0.84rem', color: '#64748B' }}>
+                Have a registered real account?{' '}
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('real')}
+                  style={{
                     background: 'none',
                     border: 'none',
-                    color: 'var(--color-text-secondary)',
+                    color: '#2563EB',
+                    fontWeight: 600,
                     cursor: 'pointer',
-                    padding: '2px',
+                    padding: 0,
                   }}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  Switch to Real Account
                 </button>
               </div>
             </div>
-
-            {/* Remember Me & Security Policy */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '0.84rem',
-              }}
-            >
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--color-text-main)' }}>
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  style={{ accentColor: 'var(--color-blue-primary)', width: '15px', height: '15px' }}
-                />
-                <span>Remember session</span>
-              </label>
-
-              <button
-                type="button"
-                onClick={() => setShowResetModal(true)}
+          ) : (
+            /* =========================================================================
+                MODE 2: REAL ACCOUNT LOGIN (Standard form with empty inputs)
+                ========================================================================= */
+            <div>
+              {/* Portal Selector */}
+              <div
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--color-blue-primary)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontSize: '0.84rem',
-                }}
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={submitting || authLoading}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                backgroundColor: 'var(--color-blue-primary)',
-                color: '#FFFFFF',
-                padding: '0.85rem 1.25rem',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                border: 'none',
-                cursor: submitting || authLoading ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 6px rgba(22, 119, 210, 0.35)',
-                transition: 'all var(--transition-fast)',
-              }}
-              onMouseEnter={(e) => {
-                if (!submitting && !authLoading) e.currentTarget.style.backgroundColor = 'var(--color-blue-bright)';
-              }}
-              onMouseLeave={(e) => {
-                if (!submitting && !authLoading) e.currentTarget.style.backgroundColor = 'var(--color-blue-primary)';
-              }}
-            >
-              <span>{submitting || authLoading ? 'Authenticating with Backend...' : 'Sign In to CODEBUFFET'}</span>
-              <ArrowRight size={17} />
-            </button>
-          </form>
-
-          {/* Quick Credential Prefill for Evaluation (Fills form, executes real auth) */}
-          <div
-            style={{
-              marginTop: '1.5rem',
-              padding: '1rem',
-              borderRadius: '12px',
-              backgroundColor: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Prefill Verified Seed Accounts:
-              </span>
-              <ShieldCheck size={14} style={{ color: '#10B981' }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('admin')}
-                style={{
-                  padding: '7px 9px',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  textAlign: 'left',
+                  display: 'flex',
+                  backgroundColor: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  padding: '3px',
                   borderRadius: '6px',
-                  border: '1px solid #CBD5E1',
-                  backgroundColor: '#FFFFFF',
-                  color: '#0F172A',
-                  cursor: 'pointer',
+                  gap: '4px',
+                  marginBottom: '1rem',
                 }}
               >
-                ADMIN
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('student')}
-                style={{
-                  padding: '7px 9px',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  textAlign: 'left',
-                  borderRadius: '6px',
-                  border: '1px solid #CBD5E1',
-                  backgroundColor: '#FFFFFF',
-                  color: '#0F172A',
-                  cursor: 'pointer',
-                }}
-              >
-                STUDENT
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('mentor')}
-                style={{
-                  padding: '7px 9px',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  textAlign: 'left',
-                  borderRadius: '6px',
-                  border: '1px solid #CBD5E1',
-                  backgroundColor: '#FFFFFF',
-                  color: '#0F172A',
-                  cursor: 'pointer',
-                }}
-              >
-                FACULTY
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('tpo')}
-                style={{
-                  padding: '7px 9px',
-                  fontSize: '0.76rem',
-                  fontWeight: 600,
-                  textAlign: 'left',
-                  borderRadius: '6px',
-                  border: '1px solid #CBD5E1',
-                  backgroundColor: '#FFFFFF',
-                  color: '#0F172A',
-                  cursor: 'pointer',
-                }}
-              >
-                PLACEMENT MENTOR
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setRealPortal('institution')}
+                  style={{
+                    flex: 1,
+                    padding: '7px 10px',
+                    borderRadius: '4px',
+                    border: 'none',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    backgroundColor: realPortal === 'institution' ? '#2563EB' : 'transparent',
+                    color: realPortal === 'institution' ? '#FFFFFF' : '#475569',
+                  }}
+                >
+                  Institution Portal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRealPortal('student')}
+                  style={{
+                    flex: 1,
+                    padding: '7px 10px',
+                    borderRadius: '4px',
+                    border: 'none',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    backgroundColor: realPortal === 'student' ? '#2563EB' : 'transparent',
+                    color: realPortal === 'student' ? '#FFFFFF' : '#475569',
+                  }}
+                >
+                  Student Portal
+                </button>
+              </div>
+
+              <form onSubmit={(e) => handleLoginSubmit(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Identifier Field */}
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      color: '#0F172A',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    {realPortal === 'student' ? 'Registration / Roll Number or Email' : 'Institutional Email or Staff ID'}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#64748B',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      {realPortal === 'student' ? <GraduationCap size={17} /> : <Mail size={17} />}
+                    </div>
+                    <input
+                      type="text"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder={realPortal === 'student' ? 'e.g. STU-2024-042 or name@univ.edu' : 'e.g. name@university.edu'}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 0.75rem 0.75rem 2.45rem',
+                        fontSize: '0.9rem',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '8px',
+                        backgroundColor: '#FFFFFF',
+                        color: '#0F172A',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Password Field */}
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      color: '#0F172A',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    Password
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: '#64748B',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <Lock size={17} />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 2.5rem 0.75rem 2.45rem',
+                        fontSize: '0.9rem',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: '8px',
+                        backgroundColor: '#FFFFFF',
+                        color: '#0F172A',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748B',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Remember Me & Forgot Password */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      style={{ borderRadius: '4px', accentColor: '#2563EB' }}
+                    />
+                    <span>Remember me</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowResetModal(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563EB',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontSize: '0.82rem',
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={submitting || authLoading}
+                  style={{
+                    width: '100%',
+                    padding: '0.85rem',
+                    fontSize: '0.92rem',
+                    fontWeight: 600,
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#2563EB',
+                    color: '#FFFFFF',
+                    cursor: submitting || authLoading ? 'not-allowed' : 'pointer',
+                    opacity: submitting || authLoading ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    marginTop: '4px',
+                  }}
+                >
+                  {submitting || authLoading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign In to Platform <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Links: Register and Switch to Demo */}
+              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'center', fontSize: '0.84rem', color: '#64748B' }}>
+                <div>
+                  Don't have an account?{' '}
+                  <Link to="/register" style={{ color: '#2563EB', fontWeight: 600, textDecoration: 'none' }}>
+                    Create account here
+                  </Link>
+                </div>
+                <div>
+                  Evaluating CODEBUFFET?{' '}
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('demo')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#2563EB',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    Explore Demo Accounts
+                  </button>
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: '0.70rem', color: '#64748B', marginTop: '8px' }}>
-              * Fills secure development seed credentials into input fields for live API verification.
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Footer info */}
-        <div style={{ textAlign: 'center', fontSize: '0.76rem', color: '#94A3B8', marginTop: '1.5rem' }}>
-          CODEBUFFET Intelligence Platform • Insights Today | Brighter Tomorrow
+        {/* Bottom Footer Info */}
+        <div
+          style={{
+            marginTop: '2rem',
+            paddingTop: '1rem',
+            borderTop: '1px solid #E2E8F0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.76rem',
+            color: '#94A3B8',
+          }}
+        >
+          <div>© 2026 CODEBUFFET. All rights reserved.</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <ShieldCheck size={14} style={{ color: '#10B981' }} />
+            <span>256-bit PBKDF2 Encrypted</span>
+          </div>
         </div>
       </div>
 
       {/* =========================================================================
-          RIGHT SIDE: CAMPUS PHOTOGRAPHY (User Image 1) WITH ORGANIC WAVE
+          RIGHT SIDE: CAMPUS VISUAL WITH WAVE & METRICS OVERLAY
           ========================================================================= */}
       <div
         style={{
@@ -616,7 +880,7 @@ export default function LoginPage() {
         }}
         className="login-visual-panel"
       >
-        {/* Organic Curved Wave Divider on the left edge */}
+        {/* Organic Curved Wave Divider */}
         <svg
           style={{
             position: 'absolute',
@@ -649,7 +913,7 @@ export default function LoginPage() {
           }}
         />
 
-        {/* Floating Glass Metric Card (Matching STITH / Image 1 HUD) */}
+        {/* Floating Glass Metric Card */}
         <div
           style={{
             position: 'relative',
@@ -684,18 +948,18 @@ export default function LoginPage() {
               <div style={{ fontSize: '0.90rem', fontWeight: 700, color: '#0F172A' }}>
                 Student Success Intelligence
               </div>
-              <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Real-time ML risk & telemetry</div>
+              <div style={{ fontSize: '0.72rem', color: '#64748B' }}>50,008 student records analyzed</div>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '3px' }}>
-                <span style={{ color: '#475569', fontWeight: 500 }}>Academic Performance</span>
-                <strong style={{ color: '#0F172A' }}>85.4%</strong>
+                <span style={{ color: '#475569', fontWeight: 500 }}>Academic Risk Detection</span>
+                <strong style={{ color: '#0F172A' }}>99.2%</strong>
               </div>
               <div style={{ width: '100%', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: '85.4%', height: '100%', backgroundColor: '#1E6BFF', borderRadius: '3px' }} />
+                <div style={{ width: '99.2%', height: '100%', backgroundColor: '#2563EB', borderRadius: '3px' }} />
               </div>
             </div>
 
@@ -711,11 +975,11 @@ export default function LoginPage() {
 
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '3px' }}>
-                <span style={{ color: '#475569', fontWeight: 500 }}>Engagement & Skills</span>
-                <strong style={{ color: '#0F172A' }}>82.0%</strong>
+                <span style={{ color: '#475569', fontWeight: 500 }}>AI Intervention Accuracy</span>
+                <strong style={{ color: '#0F172A' }}>94.1%</strong>
               </div>
               <div style={{ width: '100%', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: '82.0%', height: '100%', backgroundColor: '#10B981', borderRadius: '3px' }} />
+                <div style={{ width: '94.1%', height: '100%', backgroundColor: '#10B981', borderRadius: '3px' }} />
               </div>
             </div>
           </div>
@@ -723,7 +987,7 @@ export default function LoginPage() {
       </div>
 
       {/* =========================================================================
-          PASSWORD RESET & SECURITY POLICY MODAL
+          SECURITY POLICY & RESET MODAL
           ========================================================================= */}
       {showResetModal && (
         <div
@@ -760,14 +1024,14 @@ export default function LoginPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#1E6BFF',
+                  color: '#2563EB',
                 }}
               >
                 <KeyRound size={22} />
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#0F172A' }}>
-                  Institutional Security & Credential Policy
+                  Credential & Reset Policy
                 </h3>
                 <span style={{ fontSize: '0.78rem', color: '#64748B' }}>CODEBUFFET Identity Governance</span>
               </div>
@@ -799,7 +1063,7 @@ export default function LoginPage() {
                 width: '100%',
                 padding: '0.75rem',
                 borderRadius: '8px',
-                backgroundColor: '#1E6BFF',
+                backgroundColor: '#2563EB',
                 color: '#FFFFFF',
                 fontWeight: 600,
                 border: 'none',

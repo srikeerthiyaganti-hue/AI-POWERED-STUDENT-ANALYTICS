@@ -1,4 +1,3 @@
-
 """
 CODEBUFFET — FastAPI Main Application Entrypoint
 Student Success Intelligence Platform Backend Service
@@ -14,6 +13,7 @@ from backend.database import init_db, seed_initial_data
 from backend.routes.auth_routes import router as auth_router
 from backend.routes.institution_routes import router as institution_router
 from backend.routes.student_routes import router as student_router
+from backend.routes.placement_routes import router as placement_router
 
 
 @asynccontextmanager
@@ -27,10 +27,18 @@ app = FastAPI(
     title="CODEBUFFET — Student Success Intelligence API",
     description=(
         "Backend service providing authentication, student telemetry, "
-        "ML risk predictions, and institution analytics."
+        "ML risk predictions, institution analytics, and placement pipeline.\n\n"
+        "### How to Authenticate in Swagger UI:\n"
+        "1. Open **POST /api/auth/login** below and click **Try it out**.\n"
+        "2. Provide your credentials (e.g. `admin@codebuffet.edu` / `CodeBuffet@2026!` or `rajesh.kumar@codebuffet.edu` / `Mentor@2026!`).\n"
+        "3. Copy the returned `access_token`.\n"
+        "4. Click the green **Authorize** button at the top right of this page.\n"
+        "5. Enter the token into the **Value** field and click **Authorize**.\n"
+        "6. All protected endpoints will automatically include the `Authorization: Bearer <token>` header."
     ),
     version="2.0.0",
     lifespan=lifespan,
+    swagger_ui_parameters={"persistAuthorization": True},
 )
 
 # Allowed Origins for CORS
@@ -56,6 +64,10 @@ ALLOWED_ORIGINS = [
     "https://ai-powered-student-analytics-three.vercel.app",
     "https://ai-powered-student-analytics-g5yyvnry9-srikeerthiyaganti-hue.vercel.app",
     "https://ai-powered-student-analytics-qcqmmkbec-srikeerthiyaganti-hue.vercel.app",
+
+    # Render Deployments
+    "https://ai-powered-student-analytics-frontend.onrender.com",
+    "https://ai-powered-student-analytics.onrender.com",
 ]
 
 # Optional environment override from Render
@@ -66,7 +78,7 @@ if _env_frontend and _env_frontend not in ALLOWED_ORIGINS:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https://ai-powered-student-analytics(-[a-zA-Z0-9_-]+)?\.vercel\.app)$",
+    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https://ai-powered-student-analytics(-[a-zA-Z0-9_-]+)?\.vercel\.app|https://.*\.onrender\.com)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,6 +88,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(institution_router)
 app.include_router(student_router)
+app.include_router(placement_router)
 
 
 @app.get("/api/health")

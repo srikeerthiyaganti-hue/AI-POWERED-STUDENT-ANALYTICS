@@ -127,73 +127,91 @@ def predict_student_risks(student: dict) -> dict:
         ]
 
     # Construct input vector in exact schema order
-    vector = [float(student.get(f, 0.0)) for f in feature_cols]
+    vector = [float(student.get(f) or 0.0) for f in feature_cols]
     vector_arr = np.array([vector])
 
-    # 1. Independent Academic Risk Computation
-    # Investigation Note: academic_risk_model.joblib and placement_risk_model.joblib
-    # have identical binary checksums (both originally trained on placement_status).
-    # To ensure analytical integrity and prevent duplicate predictions, Academic Risk
-    # is evaluated independently on real academic indicators: backlogs, attendance, CGPA, and LMS velocity.
-    backlogs = int(student.get("backlogs", 0))
-    att = float(student.get("overall_attendance_pct", 75.0))
-    cgpa = float(student.get("cgpa", 7.0))
-    lms_comp = float(student.get("lms_assignment_completion_pct", 80.0))
+    # 1. Independent Academic Risk Computation (Precedence Rules)
+    cgpa = float(student.get("cgpa", 7.0)) if student.get("cgpa") is not None else None
+    att = float(student.get("overall_attendance_pct", 75.0)) if student.get("overall_attendance_pct") is not None else None
+    backlogs = int(student.get("backlogs", 0)) if student.get("backlogs") is not None else 0
 
-    acad_hazard = (
-        (min(backlogs, 4) / 4.0) * 0.45 +
-        max(0.0, (75.0 - att) / 75.0) * 0.30 +
-        max(0.0, (7.0 - min(cgpa, 7.0)) / 4.0) * 0.15 +
-        max(0.0, (70.0 - min(lms_comp, 70.0)) / 70.0) * 0.10
-    )
-    acad_prob = round(min(0.95, max(0.05, acad_hazard)), 4)
-    acad_band = "HIGH" if acad_prob >= 0.45 else ("MEDIUM" if acad_prob >= 0.25 else "LOW")
-
-    # 2. Placement Risk Prediction (calibrated threshold 0.35 for minority class)
-    if _PLACEMENT_MODEL is not None:
-        place_prob = float(_PLACEMENT_MODEL.predict_proba(vector_arr)[0][1])
+    if cgpa is None or att is None:
+        acad_band = "UNKNOWN"
+        acad_prob = 0.50
+    elif cgpa < 6.0 or att < 65.0:
+        acad_band = "HIGH"
+        acad_prob = round(min(0.95, 0.65 + (6.0 - min(cgpa, 6.0)) * 0.06 + (65.0 - min(att, 65.0)) * 0.005), 4)
+    elif cgpa < 7.5 or att < 75.0:
+        acad_band = "MEDIUM"
+        acad_prob = round(min(0.60, max(0.20, 0.25 + (7.5 - cgpa) * 0.08 + (75.0 - att) * 0.006)), 4)
     else:
-        # Fallback calibrated heuristic
-        coding = student.get("coding_skills", 5.0) / 10.0
-        aptitude = student.get("aptitude_score", 60.0) / 100.0
-        place_prob = min(0.95, max(0.05, (1.0 - coding) * 0.50 + (1.0 - aptitude) * 0.40))
+        acad_band = "LOW"
+        acad_prob = round(max(0.04, 0.15 - (cgpa - 7.5) * 0.04 - (att - 75.0) * 0.003), 4)
 
-    place_band = "HIGH" if place_prob >= 0.35 else ("MEDIUM" if place_prob >= 0.20 else "LOW")
+    # 2. Independent Placement Risk Computation (Technical Competency & Assessment Decoupled Engine)
+    coding = float(student.get("coding_skills")) if student.get("coding_skills") is not None else None
+    dsa = float(student.get("dsa_score")) if student.get("dsa_score") is not None else None
+    aptitude = float(student.get("aptitude_score")) if student.get("aptitude_score") is not None else None
+    comm = float(student.get("communication_skills", 6.0)) if student.get("communication_skills") is not None else 6.0
+
+    if coding is None and dsa is None and aptitude is None:
+        place_band = "NOT_ASSESSED"
+        place_prob = 0.50
+    else:
+        c_val = coding if coding is not None else 5.0
+        d_val = dsa if dsa is not None else 5.0
+        a_val = aptitude if aptitude is not None else 60.0
+        tech_score = (c_val * 10 * 0.35) + (d_val * 10 * 0.35) + (a_val * 0.20) + (comm * 10 * 0.10)
+
+        if tech_score < 50.0 or d_val < 4.0 or c_val < 4.0:
+            place_band = "HIGH"
+            place_prob = round(min(0.95, max(0.60, (70.0 - tech_score) / 50.0)), 4)
+        elif tech_score < 70.0 or d_val < 6.0 or c_val < 6.0 or a_val < 60.0:
+            place_band = "MEDIUM"
+            place_prob = round(min(0.55, max(0.25, (75.0 - tech_score) / 60.0)), 4)
+        else:
+            place_band = "LOW"
+            place_prob = round(max(0.04, min(0.20, (100.0 - tech_score) / 200.0)), 4)
 
     # 3. Explainability: Identify Top Contributing Risk Factors
     risk_factors = []
-    if float(student.get("overall_attendance_pct", 100.0)) < 75.0:
+    att_val = student.get("overall_attendance_pct")
+    if att_val is not None and float(att_val) < 75.0:
         risk_factors.append({
             "indicator": "Attendance Shortage",
-            "observed_value": f"{student.get('overall_attendance_pct')}%",
+            "observed_value": f"{att_val}%",
             "benchmark": "75.0%",
             "severity": "HIGH"
         })
-    if int(student.get("backlogs", 0)) > 0:
+    backlogs_val = student.get("backlogs")
+    if backlogs_val is not None and int(backlogs_val) > 0:
         risk_factors.append({
             "indicator": "Active Backlogs",
-            "observed_value": str(student.get("backlogs")),
+            "observed_value": str(backlogs_val),
             "benchmark": "0",
             "severity": "HIGH"
         })
-    if float(student.get("coding_skills", 10.0)) < 5.0:
+    coding_val = student.get("coding_skills")
+    if coding_val is not None and float(coding_val) < 5.0:
         risk_factors.append({
             "indicator": "Coding Assessment Below Average",
-            "observed_value": f"{student.get('coding_skills')}/10",
+            "observed_value": f"{coding_val}/10",
             "benchmark": "6.0/10",
             "severity": "MEDIUM"
         })
-    if float(student.get("aptitude_score", 100.0)) < 55.0:
+    apt_val = student.get("aptitude_score")
+    if apt_val is not None and float(apt_val) < 55.0:
         risk_factors.append({
             "indicator": "Aptitude Score Gap",
-            "observed_value": f"{student.get('aptitude_score')}/100",
+            "observed_value": f"{apt_val}/100",
             "benchmark": "60.0/100",
             "severity": "MEDIUM"
         })
-    if float(student.get("lms_assignment_completion_pct", 100.0)) < 65.0:
+    lms_val = student.get("lms_assignment_completion_pct")
+    if lms_val is not None and float(lms_val) < 65.0:
         risk_factors.append({
             "indicator": "Low LMS Assignment Submissions",
-            "observed_value": f"{student.get('lms_assignment_completion_pct')}%",
+            "observed_value": f"{lms_val}%",
             "benchmark": "75.0%",
             "severity": "LOW"
         })

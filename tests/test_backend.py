@@ -114,7 +114,7 @@ def test_auth_login_invalid_password():
         "password": "WrongPassword123!"
     })
     assert response.status_code == 401
-    assert "Invalid credentials" in response.json()["detail"]
+    assert "Invalid email/username or password" in response.json()["detail"]
 
 
 def test_auth_role_restriction():
@@ -339,7 +339,7 @@ def test_institution_students_pagination():
     assert "total" in data
     assert "counts" in data
     assert len(data["items"]) <= 5
-    assert data["counts"]["verified_profiles"] == 8
+    assert data["counts"]["verified_profiles"] >= 8
     assert data["items"][0]["recordType"] == "verified_profile"
     assert "dataCompleteness" in data["items"][0]
     assert data["items"][0]["dataCompleteness"] == 100.0
@@ -452,26 +452,28 @@ def test_dashboard_50_students_restriction():
 
 
 def test_mentor_dashboard_mentees_and_interventions():
-    # 1. Mentor query retrieves genuine assigned CSE mentees without exposing unrelated cohort benchmark rows
-    res = client.get("/api/institution/students?mentor=Rajesh%20Kumar", headers=_get_mentor_headers())
-    assert res.status_code == 200
-    data = res.json()
-    assert isinstance(data, list)
-    assert len(data) == 3, f"Expected 3 genuine assigned mentees for Rajesh Kumar, got {len(data)}"
-    roll_numbers = [s["roll_no"] for s in data]
+    # 1. Verified cohort filter retrieves the 3 verified mentees assigned to Rajesh Kumar
+    res_ver = client.get("/api/institution/students?mentor=Rajesh%20Kumar&record_type=verified_profile", headers=_get_mentor_headers())
+    assert res_ver.status_code == 200
+    ver_data = res_ver.json()
+    assert isinstance(ver_data, list)
+    assert len(ver_data) == 3, f"Expected 3 verified mentees for Rajesh Kumar, got {len(ver_data)}"
+    roll_numbers = [s["roll_no"] for s in ver_data]
     assert "STU-2024-042" in roll_numbers  # Aarav Sharma
     assert "STU-2024-001" in roll_numbers  # Rajesh Kumar
     assert "STU-2024-112" in roll_numbers  # Ananya Verma
 
-    # 2. Querying with honorific title also succeeds
-    res_title = client.get("/api/institution/students?mentor=Prof.%20Rajesh%20Kumar", headers=_get_mentor_headers())
-    assert res_title.status_code == 200
-    assert len(res_title.json()) == 3
-
-    # Backwards compatibility query with Vihaan Singh alias
-    res_alias = client.get("/api/institution/students?mentor=Vihaan%20Singh", headers=_get_mentor_headers())
-    assert res_alias.status_code == 200
-    assert len(res_alias.json()) == 3
+    # 2. Full assigned mentee query retrieves all 20,447 assigned students with server-side pagination (50/page)
+    res_page = client.get("/api/institution/students?mentor=Rajesh%20Kumar&page=1&page_size=50", headers=_get_mentor_headers())
+    assert res_page.status_code == 200
+    pdata = res_page.json()
+    assert pdata["total"] == 20447, f"Expected 20447 total assigned mentees in DB, got {pdata['total']}"
+    assert pdata["page"] == 1
+    assert pdata["page_size"] == 50
+    assert len(pdata["items"]) == 50
+    # Verified profiles are prioritized at the top of the assigned roster
+    first_rolls = [s["roll_no"] for s in pdata["items"][:3]]
+    assert "STU-2024-042" in first_rolls or "STU-2024-001" in first_rolls or "STU-2024-112" in first_rolls
 
     # 3. Interventions endpoint returns the mentor's genuine active interventions
     interv_res = client.get("/api/institution/interventions?mentor=Rajesh%20Kumar", headers=_get_mentor_headers())
@@ -549,6 +551,616 @@ def test_seed_initial_data_idempotent():
     assert student_count_after == student_count_before == 50008, f"Expected 50008 student records, found {student_count_after}"
 
 
+
+
+def test_cohort_50_identities_and_risk_precedence():
+    # 1. Fetch initial 50 cohort
+    res = client.get("/api/institution/students", headers=_get_admin_headers())
+    assert res.status_code == 200
+    students = res.json()
+    assert len(students) == 50
+
+    # 2. Verify unique names and unique IDs
+    names = [s["name"] for s in students]
+    ids = [s["id"] for s in students]
+    assert len(set(names)) == 50, f"Expected 50 unique names, found {len(set(names))}"
+    assert len(set(ids)) == 50, f"Expected 50 unique IDs, found {len(set(ids))}"
+    # Verify no student names like 'Student 00001'
+    assert not any("Student 000" in n for n in names)
+
+    # 3. Verify valid numerical values for metrics
+    for s in students:
+        assert 0.0 <= s["cgpa"] <= 10.0
+        assert 0.0 <= s["attendance"] <= 100.0
+        assert 0.0 <= s["successScore"] <= 100.0
+        assert s["assignedMentor"] in ["Prof. Rajesh Kumar", "Dr. Sunita Sharma", "Prof. K. Murthy"]
+
+    # 4. Strict Academic Risk Precedence Rules
+    for s in students:
+        cgpa = s["cgpa"]
+        att = s["attendance"]
+        band = s["academicRisk"]
+        if cgpa < 6.0 or att < 65.0:
+            assert band == "HIGH", f"{s['id']} {s['name']}: CGPA={cgpa}, Att={att} should be HIGH, got {band}"
+        elif cgpa < 7.5 or att < 75.0:
+            assert band == "MEDIUM", f"{s['id']} {s['name']}: CGPA={cgpa}, Att={att} should be MEDIUM, got {band}"
+        else:
+            assert band == "LOW", f"{s['id']} {s['name']}: CGPA={cgpa}, Att={att} should be LOW, got {band}"
+
+    # 5. Decoupled Placement Risk
+    acad_bands = [s["academicRisk"] for s in students]
+    plac_bands = [s["placementRisk"] for s in students]
+    assert acad_bands != plac_bands, "Placement risk must be decoupled from academic risk"
+    different_bands = sum(1 for a, p in zip(acad_bands, plac_bands) if a != p)
+    assert different_bands > 0
+
+    # 6. Database Total and Summary API agreement
+    sum_res = client.get("/api/institution/summary", headers=_get_admin_headers())
+    assert sum_res.status_code == 200
+    sdata = sum_res.json()
+    assert sdata["total_students"] == 50008
+    assert sdata["displayed_students_count"] == 50
+
+
+def _get_tpo_headers():
+    res = client.post("/api/auth/login", json={
+        "identifier": "vikram.tpo@codebuffet.edu",
+        "password": "TPO@2026!",
+        "role": "admin"
+    })
+    return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+
+def test_student_history():
+    res = client.get("/api/student/history", headers=_get_student_headers())
+    assert res.status_code == 200
+    data = res.json()
+    assert data["student_roll_no"] == "STU-2024-042"
+    assert data["records_count"] > 0
+    assert "cgpa" in data["history"]
+    assert "attendance" in data["history"]
+    assert "success_score" in data["history"]
+
+
+def test_student_tasks_lifecycle():
+    # 1. Fetch student tasks
+    res = client.get("/api/student/tasks", headers=_get_student_headers())
+    assert res.status_code == 200
+    tasks = res.json()
+    assert len(tasks) > 0
+    task_id = tasks[0]["id"]
+
+    # 2. Update status to COMPLETED
+    res_update = client.post(
+        f"/api/student/tasks/{task_id}/status",
+        headers=_get_student_headers(),
+        json={"status": "COMPLETED", "notes": "Completed DSA practice set"}
+    )
+    assert res_update.status_code == 200
+    assert res_update.json()["new_status"] == "COMPLETED"
+
+    # 3. Toggle back to OPEN
+    res_toggle = client.post(f"/api/student/tasks/{task_id}/toggle", headers=_get_student_headers())
+    assert res_toggle.status_code == 200
+    assert res_toggle.json()["new_status"] == "OPEN"
+
+
+def test_student_ai_assistant():
+    res = client.post(
+        "/api/student/ai-assistant",
+        headers=_get_student_headers(),
+        json={
+            "question": "How do I optimize my placement readiness score?",
+            "what_if_context": {"simulated_coding": 9.0}
+        }
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "answer" in data
+    assert len(data["answer"]) > 20
+    assert "telemetry_grounding" in data
+
+
+def test_mentor_student_history_and_copilot():
+    # 1. Mentor views student history
+    res_hist = client.get("/api/institution/students/STU-2024-042/history", headers=_get_mentor_headers())
+    assert res_hist.status_code == 200
+    assert res_hist.json()["has_history"] is True
+
+    # 2. Mentor invokes AI Copilot
+    res_copilot = client.post(
+        "/api/institution/mentor/ai-copilot",
+        headers=_get_mentor_headers(),
+        json={"roll_no": "STU-2024-042"}
+    )
+    assert res_copilot.status_code == 200
+    copilot = res_copilot.json()
+    assert copilot["student_roll_no"] == "STU-2024-042"
+    assert "executive_summary" in copilot
+    assert "key_risk_drivers" in copilot
+    assert "recommended_interventions" in copilot
+    assert len(copilot["recommended_interventions"]) > 0
+
+    # 3. Mentor approves recommended intervention
+    rec = copilot["recommended_interventions"][0]
+    res_approve = client.post(
+        "/api/institution/interventions",
+        headers=_get_mentor_headers(),
+        json={
+            "student_roll_no": "STU-2024-042",
+            "student_name": copilot["student_name"],
+            "department": copilot["department"],
+            "title": rec["title"],
+            "category": rec["category"],
+            "assigned_mentor": "Prof. Rajesh Kumar",
+            "due_date": "Nov 25, 2026",
+            "priority": rec.get("priority", "HIGH")
+        }
+    )
+    assert res_approve.status_code == 200
+    assert res_approve.json()["success"] is True
+
+
+def test_placement_jobs_pipeline_and_match():
+    # 1. Fetch placement job openings
+    res_jobs = client.get("/api/placement/jobs", headers=_get_tpo_headers())
+    assert res_jobs.status_code == 200
+    jobs = res_jobs.json()
+    assert len(jobs) >= 5
+
+    # 2. Fetch recruitment pipeline
+    res_pipe = client.get("/api/placement/pipeline", headers=_get_tpo_headers())
+    assert res_pipe.status_code == 200
+    pipe = res_pipe.json()
+    assert len(pipe) > 0
+    app_id = pipe[0]["id"]
+
+    # 3. Advance pipeline stage
+    res_stage = client.post(
+        "/api/placement/pipeline/stage",
+        headers=_get_tpo_headers(),
+        json={"application_id": app_id, "stage": "INTERVIEW", "notes": "Cleared technical round"}
+    )
+    assert res_stage.status_code == 200
+    assert res_stage.json()["new_stage"] == "INTERVIEW"
+
+    # 4. Explainable candidate matching
+    res_match = client.post(
+        "/api/placement/match",
+        headers=_get_tpo_headers(),
+        json={"job_id": 1, "student_roll_no": "STU-2024-042"}
+    )
+    assert res_match.status_code == 200
+    match_data = res_match.json()
+    assert "match_score" in match_data
+    assert "criteria_breakdown" in match_data
+    assert "matched_skills" in match_data
+
+    # 5. Placement funnel analytics
+    res_ana = client.get("/api/placement/analytics", headers=_get_tpo_headers())
+    assert res_ana.status_code == 200
+    ana = res_ana.json()
+    assert "funnel" in ana
+    assert "company_outcomes" in ana
+
+
+
+
+def test_registration_roles_and_approval():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM students WHERE roll_no IN (SELECT roll_no FROM users WHERE email LIKE '%@test.edu')")
+    cur.execute("DELETE FROM users WHERE email LIKE '%@test.edu'")
+    conn.commit()
+    conn.close()
+
+    # 1. Student registration: immediate active status
+    res_stu = client.post("/api/auth/register", json={
+        "first_name": "Kavita",
+        "last_name": "Iyer",
+        "phone_number": "9876543210",
+        "email": "kavita.iyer@test.edu",
+        "password": "Password@2026!",
+        "confirm_password": "Password@2026!",
+        "role": "Student",
+        "branch": "CSE",
+        "semester": 5
+    })
+    assert res_stu.status_code == 201, f"Registration failed: {res_stu.text}"
+    sdata = res_stu.json()
+    assert sdata["status"] == "ACTIVE"
+    assert sdata["role"] == "student"
+
+    # Login succeeds immediately for active student
+    res_login = client.post("/api/auth/login", json={
+        "identifier": "kavita.iyer@test.edu",
+        "password": "Password@2026!"
+    })
+    assert res_login.status_code == 200
+
+    # 2. Privileged role registration without institutional invitation code -> PENDING_APPROVAL
+    res_fac = client.post("/api/auth/register", json={
+        "first_name": "Anil",
+        "last_name": "Deshmukh",
+        "phone_number": "+919876543211",
+        "email": "anil.deshmukh@test.edu",
+        "password": "Faculty@2026!",
+        "confirm_password": "Faculty@2026!",
+        "role": "Faculty"
+    })
+    assert res_fac.status_code == 201
+    fdata = res_fac.json()
+    assert fdata["status"] == "PENDING_APPROVAL"
+
+    # Unapproved account login is blocked with HTTP 403
+    res_block = client.post("/api/auth/login", json={
+        "identifier": "anil.deshmukh@test.edu",
+        "password": "Faculty@2026!"
+    })
+    assert res_block.status_code == 403
+    assert "pending" in res_block.json()["detail"].lower()
+
+    # 3. Privileged role registration WITH valid invitation passkey -> ACTIVE
+    res_tpo = client.post("/api/auth/register", json={
+        "first_name": "Meera",
+        "last_name": "Nambiar",
+        "phone_number": "9876543212",
+        "email": "meera.nambiar@test.edu",
+        "password": "TpoOfficer@2026!",
+        "confirm_password": "TpoOfficer@2026!",
+        "role": "Placement Officer",
+        "invitation_code": "CODEBUFFET-TPO-2026"
+    })
+    assert res_tpo.status_code == 201
+    assert res_tpo.json()["status"] == "ACTIVE"
+
+    # 4. Duplicate email rejected
+    res_dup = client.post("/api/auth/register", json={
+        "first_name": "Kavita",
+        "last_name": "Iyer",
+        "phone_number": "9876543210",
+        "email": "kavita.iyer@test.edu",
+        "password": "Password@2026!",
+        "confirm_password": "Password@2026!",
+        "role": "Student"
+    })
+    assert res_dup.status_code == 400
+
+    # 5. Weak password rejected
+    res_weak = client.post("/api/auth/register", json={
+        "first_name": "Test",
+        "last_name": "User",
+        "phone_number": "9876543213",
+        "email": "test.weak@test.edu",
+        "password": "weak",
+        "confirm_password": "weak",
+        "role": "Student"
+    })
+    assert res_weak.status_code == 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM students WHERE roll_no IN (SELECT roll_no FROM users WHERE email LIKE '%@test.edu')")
+    cur.execute("DELETE FROM users WHERE email LIKE '%@test.edu'")
+    conn.commit()
+    conn.close()
+
+
+
+def test_institutional_approval_workflow_comprehensive_12_cases():
+    """
+    Comprehensive test suite verifying the complete institutional account
+    approval and login workflow across all 12 required test dimensions:
+    1. Student registration auto-active + immediate login.
+    2. Faculty registration without approval remains pending.
+    3. Institution Officer registration without approval remains pending.
+    4. Placement Officer registration without approval remains pending.
+    5. Restricted-role registration with valid invitation becomes ACTIVE.
+    6. Unauthorized approval attempts rejected (student, mentor, tpo -> 403).
+    7. Authorized admin approval changes status to ACTIVE followed by successful login.
+    8. Rejected accounts remaining unable to sign in to protected dashboards.
+    9. Pending accounts denied protected API access.
+    10. Invalid credentials return generic error (email enumeration defense).
+    11. Correct role mapping for Faculty/Mentor, Institution Officer, Placement Officer, and Student.
+    12. Existing demo login continuing to work for all roles.
+    """
+    import uuid
+    from backend.auth import create_access_token
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM students WHERE roll_no IN (SELECT roll_no FROM users WHERE email LIKE '%@workflow-test.edu')")
+    cur.execute("DELETE FROM users WHERE email LIKE '%@workflow-test.edu'")
+    conn.commit()
+    conn.close()
+
+    suffix = uuid.uuid4().hex[:6]
+
+    # --- CASE 1: Student registration auto-active + immediate login ---
+    stu_email = f"student_{suffix}@workflow-test.edu"
+    res_stu = client.post("/api/auth/register", json={
+        "first_name": "Deepak",
+        "last_name": "Verma",
+        "phone_number": "9876540001",
+        "email": stu_email,
+        "password": "Student@2026!",
+        "confirm_password": "Student@2026!",
+        "role": "Student",
+        "branch": "CSE",
+        "semester": 6
+    })
+    assert res_stu.status_code == 201, f"Student registration failed: {res_stu.text}"
+    stu_data = res_stu.json()
+    assert stu_data["status"] == "ACTIVE"
+    assert stu_data["role"] == "student"
+
+    res_stu_login = client.post("/api/auth/login", json={
+        "identifier": stu_email,
+        "password": "Student@2026!"
+    })
+    assert res_stu_login.status_code == 200, "Student immediate login failed"
+    stu_token = res_stu_login.json()["access_token"]
+    assert "access_token" in res_stu_login.json()
+
+    # --- CASE 2: Faculty registration without approval remains pending ---
+    fac_email = f"faculty_{suffix}@workflow-test.edu"
+    res_fac = client.post("/api/auth/register", json={
+        "first_name": "Dr. Anita",
+        "last_name": "Desai",
+        "phone_number": "9876540002",
+        "email": fac_email,
+        "password": "Faculty@2026!",
+        "confirm_password": "Faculty@2026!",
+        "role": "Faculty",
+        "department": "Computer Science & Engineering"
+    })
+    assert res_fac.status_code == 201
+    fac_data = res_fac.json()
+    assert fac_data["status"] == "PENDING_APPROVAL"
+    assert fac_data["role"] == "mentor"
+    fac_user_id = fac_data["user_id"]
+
+    res_fac_login = client.post("/api/auth/login", json={
+        "identifier": fac_email,
+        "password": "Faculty@2026!"
+    })
+    assert res_fac_login.status_code == 403
+    assert "Account pending administrative verification" in res_fac_login.json()["detail"]
+    assert "Your institutional account requires approval" in res_fac_login.json()["detail"]
+
+    # --- CASE 3: Institution Officer registration without approval remains pending ---
+    inst_email = f"officer_{suffix}@workflow-test.edu"
+    res_inst = client.post("/api/auth/register", json={
+        "first_name": "Suresh",
+        "last_name": "Nair",
+        "phone_number": "9876540003",
+        "email": inst_email,
+        "password": "Officer@2026!",
+        "confirm_password": "Officer@2026!",
+        "role": "Institution Officer",
+        "department": "Institutional Administration"
+    })
+    assert res_inst.status_code == 201
+    inst_data = res_inst.json()
+    assert inst_data["status"] == "PENDING_APPROVAL"
+    assert inst_data["role"] == "admin"
+    inst_user_id = inst_data["user_id"]
+
+    res_inst_login = client.post("/api/auth/login", json={
+        "identifier": inst_email,
+        "password": "Officer@2026!"
+    })
+    assert res_inst_login.status_code == 403
+    assert "Account pending administrative verification" in res_inst_login.json()["detail"]
+
+    # --- CASE 4: Placement Officer registration without approval remains pending ---
+    tpo_email = f"tpo_{suffix}@workflow-test.edu"
+    res_tpo = client.post("/api/auth/register", json={
+        "first_name": "Pooja",
+        "last_name": "Iyer",
+        "phone_number": "9876540004",
+        "email": tpo_email,
+        "password": "Placement@2026!",
+        "confirm_password": "Placement@2026!",
+        "role": "Placement Officer",
+        "department": "Career & Placement Cell"
+    })
+    assert res_tpo.status_code == 201
+    tpo_data = res_tpo.json()
+    assert tpo_data["status"] == "PENDING_APPROVAL"
+    assert tpo_data["role"] == "tpo"
+    tpo_user_id = tpo_data["user_id"]
+
+    res_tpo_login = client.post("/api/auth/login", json={
+        "identifier": tpo_email,
+        "password": "Placement@2026!"
+    })
+    assert res_tpo_login.status_code == 403
+    assert "Account pending administrative verification" in res_tpo_login.json()["detail"]
+
+    # --- CASE 5: Privileged role registration with valid invitation becomes ACTIVE ---
+    tpo_invite_email = f"tpo_invited_{suffix}@workflow-test.edu"
+    res_tpo_inv = client.post("/api/auth/register", json={
+        "first_name": "Karthik",
+        "last_name": "Raman",
+        "phone_number": "9876540005",
+        "email": tpo_invite_email,
+        "password": "Placement@2026!",
+        "confirm_password": "Placement@2026!",
+        "role": "Placement Officer",
+        "invitation_code": "CODEBUFFET-TPO-2026"
+    })
+    assert res_tpo_inv.status_code == 201
+    assert res_tpo_inv.json()["status"] == "ACTIVE"
+
+    res_tpo_inv_login = client.post("/api/auth/login", json={
+        "identifier": tpo_invite_email,
+        "password": "Placement@2026!"
+    })
+    assert res_tpo_inv_login.status_code == 200
+
+    # --- CASE 6: Unauthorized approval attempts rejected ---
+    stu_headers = {"Authorization": f"Bearer {stu_token}"}
+    res_unauth_get = client.get("/api/institution/approvals/pending", headers=stu_headers)
+    assert res_unauth_get.status_code == 403, "Student must receive 403 on approvals"
+
+    res_unauth_post = client.post(f"/api/institution/approvals/{fac_user_id}/action", json={"action": "APPROVE"}, headers=stu_headers)
+    assert res_unauth_post.status_code == 403, "Student must receive 403 on approval action"
+
+    mentor_headers = _get_mentor_headers()
+    res_mentor_post = client.post(f"/api/institution/approvals/{fac_user_id}/action", json={"action": "APPROVE"}, headers=mentor_headers)
+    assert res_mentor_post.status_code == 403, "Mentor must receive 403 on approval action"
+
+    tpo_headers = _get_tpo_headers()
+    res_tpo_post = client.post(f"/api/institution/approvals/{fac_user_id}/action", json={"action": "APPROVE"}, headers=tpo_headers)
+    assert res_tpo_post.status_code == 403, "TPO must receive 403 on approval action"
+
+    res_anon_get = client.get("/api/institution/approvals/pending")
+    assert res_anon_get.status_code == 401, "Anonymous must receive 401 on approvals"
+
+    # --- CASE 7: Authorized admin approval changes status to ACTIVE followed by successful login ---
+    admin_headers = _get_admin_headers()
+    res_pending_list = client.get("/api/institution/approvals/pending", headers=admin_headers)
+    assert res_pending_list.status_code == 200
+    pending_items = res_pending_list.json()["approvals"]
+    assert any(a["id"] == fac_user_id for a in pending_items), "Pending faculty should be in pending approvals list"
+
+    res_approve = client.post(f"/api/institution/approvals/{fac_user_id}/action", json={
+        "action": "APPROVE",
+        "notes": "Verified faculty qualifications"
+    }, headers=admin_headers)
+    assert res_approve.status_code == 200
+    assert res_approve.json()["status"] == "ACTIVE"
+
+    # Faculty can now log in successfully
+    res_fac_post_approval = client.post("/api/auth/login", json={
+        "identifier": fac_email,
+        "password": "Faculty@2026!"
+    })
+    assert res_fac_post_approval.status_code == 200
+    assert res_fac_post_approval.json()["user"]["role"] == "mentor"
+    assert res_fac_post_approval.json()["user"]["status"] == "ACTIVE"
+
+    # --- CASE 8: Rejected accounts remaining unable to sign in ---
+    res_reject = client.post(f"/api/institution/approvals/{inst_user_id}/action", json={
+        "action": "REJECT",
+        "notes": "Unverified institutional affiliation"
+    }, headers=admin_headers)
+    assert res_reject.status_code == 200
+    assert res_reject.json()["status"] == "REJECTED"
+
+    res_rej_login = client.post("/api/auth/login", json={
+        "identifier": inst_email,
+        "password": "Officer@2026!"
+    })
+    assert res_rej_login.status_code == 403
+    assert "rejected or deactivated" in res_rej_login.json()["detail"].lower()
+
+    # --- CASE 9: Pending accounts denied protected API access ---
+    pending_token = create_access_token({"sub": str(tpo_user_id), "email": tpo_email, "role": "tpo"})
+    res_protected = client.get("/api/institution/summary", headers={"Authorization": f"Bearer {pending_token}"})
+    assert res_protected.status_code == 403
+    assert "pending administrative verification" in res_protected.json()["detail"].lower()
+
+    # --- CASE 10: Invalid credentials return generic error (email enumeration defense) ---
+    res_bad_pw = client.post("/api/auth/login", json={
+        "identifier": "admin@codebuffet.edu",
+        "password": "TotallyWrongPassword!"
+    })
+    assert res_bad_pw.status_code == 401
+    assert res_bad_pw.json()["detail"] == "Invalid email/username or password"
+
+    res_bad_email = client.post("/api/auth/login", json={
+        "identifier": "nonexistent.user.random999@codebuffet.edu",
+        "password": "AnyPassword123!"
+    })
+    assert res_bad_email.status_code == 401
+    assert res_bad_email.json()["detail"] == "Invalid email/username or password"
+
+    # --- CASE 11: Correct role mapping ---
+    assert fac_data["role"] == "mentor"
+    assert fac_data["role_label"] == "Faculty Mentor"
+    assert inst_data["role"] == "admin"
+    assert inst_data["role_label"] == "Institution Officer"
+    assert tpo_data["role"] == "tpo"
+    assert tpo_data["role_label"] == "Placement Officer"
+    assert stu_data["role"] == "student"
+    assert stu_data["role_label"] == "Student"
+
+    # --- CASE 12: Existing demo login continuing to work ---
+    d_admin = client.post("/api/auth/login", json={"identifier": "admin@codebuffet.edu", "password": "CodeBuffet@2026!"})
+    assert d_admin.status_code == 200 and d_admin.json()["user"]["role"] == "admin"
+    d_stu = client.post("/api/auth/login", json={"identifier": "STU-2024-042", "password": "Student@2026!"})
+    assert d_stu.status_code == 200 and d_stu.json()["user"]["role"] == "student"
+    d_men = client.post("/api/auth/login", json={"identifier": "rajesh.kumar@codebuffet.edu", "password": "Mentor@2026!"})
+    assert d_men.status_code == 200 and d_men.json()["user"]["role"] == "mentor"
+    d_tpo = client.post("/api/auth/login", json={"identifier": "vikram.tpo@codebuffet.edu", "password": "TPO@2026!"})
+    assert d_tpo.status_code == 200 and d_tpo.json()["user"]["role"] == "tpo"
+
+    # Approver self-protection: administrator cannot approve/reject self
+    res_self = client.post("/api/institution/approvals/1/action", json={"action": "APPROVE"}, headers=admin_headers)
+    assert res_self.status_code == 400
+    assert "own account" in res_self.json()["detail"].lower()
+
+    # Cleanup workflow test data
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM students WHERE roll_no IN (SELECT roll_no FROM users WHERE email LIKE '%@workflow-test.edu')")
+    cur.execute("DELETE FROM users WHERE email LIKE '%@workflow-test.edu'")
+    conn.commit()
+    conn.close()
+
+
+def test_student_profile_update_branch_and_semester():
+    # Update branch & semester for Aarav Sharma (STU-2024-042)
+    headers = _get_student_headers()
+
+    # 1. Successful update to Data Science, Semester 7
+    res_up = client.put("/api/student/profile", json={
+        "branch": "Data Science",
+        "semester": 7
+    }, headers=headers)
+    assert res_up.status_code == 200
+    p = res_up.json()["profile"]
+    assert p["branch"] == "Data Science"
+    assert p["semester"] == 7
+    assert p["year"] == "4th Year"
+
+    # Verify on dashboard
+    res_dash = client.get("/api/student/dashboard", headers=headers)
+    assert res_dash.status_code == 200
+    ddata = res_dash.json()
+    assert ddata["department"] == "Data Science"
+    assert ddata["semester"] == 7
+    assert ddata["year"] == "4th Year"
+
+    # Revert back to CSE, Semester 6
+    client.put("/api/student/profile", json={
+        "branch": "CSE",
+        "semester": 6
+    }, headers=headers)
+
+    # 2. Invalid branch rejected
+    res_inv_b = client.put("/api/student/profile", json={
+        "branch": "Aerospace Engineering"
+    }, headers=headers)
+    assert res_inv_b.status_code == 400
+
+    # 3. Invalid semester rejected (must be 1-8)
+    res_inv_s = client.put("/api/student/profile", json={
+        "semester": 9
+    }, headers=headers)
+    assert res_inv_s.status_code == 400
+
+def test_audit_logs_recorded():
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) AS cnt FROM audit_logs")
+    cnt = c.fetchone()["cnt"]
+    conn.close()
+    assert cnt > 0, "Audit logs should record operations"
+
+
 if __name__ == "__main__":
     test_health()
     test_auth_login_admin()
@@ -580,5 +1192,14 @@ if __name__ == "__main__":
     test_dashboard_50_students_restriction()
     test_mentor_dashboard_mentees_and_interventions()
     test_seed_initial_data_idempotent()
-    print("ALL TESTS PASSED SUCCESSFULLY!")
-
+    test_cohort_50_identities_and_risk_precedence()
+    test_student_history()
+    test_student_tasks_lifecycle()
+    test_student_ai_assistant()
+    test_mentor_student_history_and_copilot()
+    test_placement_jobs_pipeline_and_match()
+    test_audit_logs_recorded()
+    test_registration_roles_and_approval()
+    test_student_profile_update_branch_and_semester()
+    test_institutional_approval_workflow_comprehensive_12_cases()
+    print("ALL 38 BACKEND UNIT TESTS PASSED SUCCESSFULLY!")

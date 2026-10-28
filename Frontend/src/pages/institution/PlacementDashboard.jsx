@@ -29,6 +29,7 @@ import {
   CheckSquare,
   Eye,
   Sliders,
+  Loader2,
   Calendar,
 } from 'lucide-react';
 import {
@@ -65,6 +66,15 @@ export default function PlacementDashboard() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [mockInterviewModalOpen, setMockInterviewModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('roster'); // 'roster' | 'pipeline' | 'jobs'
+  const [pipelineData, setPipelineData] = useState([]);
+  const [jobsData, setJobsData] = useState([]);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [matchModalOpen, setMatchModalOpen] = useState(false);
+  const [matchingCandidate, setMatchingCandidate] = useState(null);
+  const [matchingJobId, setMatchingJobId] = useState(1);
+  const [matchResult, setMatchResult] = useState(null);
+  const [matchLoading, setMatchLoading] = useState(false);
 
   // Live Backend Data States
   const [candidates, setCandidates] = useState([]);
@@ -83,9 +93,12 @@ export default function PlacementDashboard() {
     let isMounted = true;
     async function fetchPlacementData() {
       try {
-        const [sumRes, studRes] = await Promise.allSettled([
+        const [sumRes, studRes, jobsRes, pipeRes, anaRes] = await Promise.allSettled([
           api.getInstitutionSummary(),
           api.getInstitutionStudents(),
+          api.getPlacementJobs(),
+          api.getPlacementPipeline(),
+          api.getPlacementAnalytics(),
         ]);
 
         if (isMounted) {
@@ -99,6 +112,16 @@ export default function PlacementDashboard() {
           } else {
             setCandidates(MOCK_STUDENTS);
           }
+          if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) {
+            setJobsData(jobsRes.value);
+            if (jobsRes.value.length > 0) setMatchingJobId(jobsRes.value[0].id);
+          }
+          if (pipeRes.status === 'fulfilled' && Array.isArray(pipeRes.value)) {
+            setPipelineData(pipeRes.value);
+          }
+          if (anaRes.status === 'fulfilled' && anaRes.value) {
+            setAnalyticsData(anaRes.value);
+          }
         }
       } catch (err) {
         console.warn('Backend unavailable, using standalone mock data:', err);
@@ -107,6 +130,50 @@ export default function PlacementDashboard() {
     fetchPlacementData();
     return () => { isMounted = false; };
   }, []);
+
+  const handleOpenMatch = async (candidate) => {
+    setMatchingCandidate(candidate);
+    setMatchModalOpen(true);
+    setMatchLoading(true);
+    setMatchResult(null);
+
+    const defaultJobId = jobsData.length > 0 ? jobsData[0].id : 1;
+    try {
+      const res = await api.matchCandidateToJob(defaultJobId, candidate.id || candidate.roll_no);
+      setMatchResult(res);
+    } catch (err) {
+      console.error('Match evaluation failed:', err);
+    } finally {
+      setMatchLoading(false);
+    }
+  };
+
+  const handleJobSelectForMatch = async (jobId) => {
+    setMatchingJobId(jobId);
+    if (!matchingCandidate) return;
+    setMatchLoading(true);
+    try {
+      const res = await api.matchCandidateToJob(jobId, matchingCandidate.id || matchingCandidate.roll_no);
+      setMatchResult(res);
+    } catch (err) {
+      console.error('Match evaluation failed:', err);
+    } finally {
+      setMatchLoading(false);
+    }
+  };
+
+  const handleAdvanceStage = async (appId, nextStage) => {
+    try {
+      await api.updatePlacementStage(appId, nextStage, 'Advanced via Placement Dashboard');
+      setPipelineData((prev) =>
+        prev.map((app) => (app.id === appId ? { ...app, stage: nextStage } : app))
+      );
+      setActionNotice(`Application successfully transitioned to ${nextStage}!`);
+      setTimeout(() => setActionNotice(''), 4000);
+    } catch (err) {
+      console.error('Failed to advance stage:', err);
+    }
+  };
 
   const handleScheduleMockInterview = async (e) => {
     e.preventDefault();
@@ -832,18 +899,82 @@ export default function PlacementDashboard() {
               </div>
             </div>
 
-            {/* ROW 3: CANDIDATE PIPELINE & RECRUITMENT TABLE */}
-            <div
-              style={{
-                backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
-                border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
-                borderRadius: '16px',
-                padding: '1.5rem',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Campus Placement Candidate Pipeline</h3>
+            {/* ROW 3: RECRUITMENT TABS (Roster / 9-Stage Pipeline / Corporate Openings) */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
+              <button
+                onClick={() => setActiveTab('roster')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: activeTab === 'roster' ? '#8B5CF6' : (isDarkMode ? '#1E293B' : '#FFFFFF'),
+                  color: activeTab === 'roster' ? '#FFFFFF' : '#64748B',
+                  boxShadow: activeTab === 'roster' ? '0 2px 6px rgba(139,92,246,0.3)' : '0 1px 3px rgba(0,0,0,0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Users size={16} />
+                <span>Candidate Roster</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('pipeline')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: activeTab === 'pipeline' ? '#8B5CF6' : (isDarkMode ? '#1E293B' : '#FFFFFF'),
+                  color: activeTab === 'pipeline' ? '#FFFFFF' : '#64748B',
+                  boxShadow: activeTab === 'pipeline' ? '0 2px 6px rgba(139,92,246,0.3)' : '0 1px 3px rgba(0,0,0,0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Target size={16} />
+                <span>9-Stage Recruitment Pipeline ({pipelineData.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('jobs')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  fontSize: '0.84rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: activeTab === 'jobs' ? '#8B5CF6' : (isDarkMode ? '#1E293B' : '#FFFFFF'),
+                  color: activeTab === 'jobs' ? '#FFFFFF' : '#64748B',
+                  boxShadow: activeTab === 'jobs' ? '0 2px 6px rgba(139,92,246,0.3)' : '0 1px 3px rgba(0,0,0,0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Building size={16} />
+                <span>Corporate Openings ({jobsData.length})</span>
+              </button>
+            </div>
+            {/* VIEW 1: CANDIDATE ROSTER */}
+            {activeTab === 'roster' && (
+              <div
+                style={{
+                  backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                  border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                  borderRadius: '16px',
+                  padding: '1.5rem',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Campus Placement Candidate Pipeline</h3>
                   <span style={{ fontSize: '0.78rem', color: '#64748B' }}>Inspect candidate coding assessment, DSA mastery, and trigger mock interviews</span>
                 </div>
 
@@ -935,6 +1066,25 @@ export default function PlacementDashboard() {
                         <td style={{ padding: '12px 8px', textAlign: 'right' }}>
                           <div style={{ display: 'inline-flex', gap: '6px' }}>
                             <button
+                              onClick={() => handleOpenMatch(s)}
+                              style={{
+                                padding: '5px 9px',
+                                borderRadius: '6px',
+                                backgroundColor: '#8B5CF6',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                fontSize: '0.74rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                              }}
+                            >
+                              <Sparkles size={12} />
+                              <span>Match Job</span>
+                            </button>
+                            <button
                               onClick={() => setSelectedStudent(s)}
                               style={{
                                 padding: '5px 9px',
@@ -1008,7 +1158,211 @@ export default function PlacementDashboard() {
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            )}
+
+            {/* VIEW 2: 9-STAGE RECRUITMENT PIPELINE */}
+            {activeTab === 'pipeline' && (
+              <div
+                style={{
+                  backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                  border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                  borderRadius: '16px',
+                  padding: '1.5rem',
+                }}
+              >
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>9-Stage Campus Recruitment Funnel</h3>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                    Tracking candidate progression from initial registration to confirmed job acceptance
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                    gap: '12px',
+                    overflowX: 'auto',
+                    paddingBottom: '8px',
+                  }}
+                >
+                  {[
+                    'REGISTERED',
+                    'ELIGIBILITY_CHECK',
+                    'TRAINING',
+                    'ASSESSMENT',
+                    'SHORTLISTED',
+                    'APPLIED',
+                    'INTERVIEW',
+                    'OFFERED',
+                    'ACCEPTED',
+                  ].map((stg) => {
+                    const stageApps = pipelineData.filter((p) => p.stage === stg);
+                    return (
+                      <div
+                        key={stg}
+                        style={{
+                          backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+                          border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                          borderRadius: '12px',
+                          padding: '12px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#8B5CF6' }}>
+                            {stg.replace('_', ' ')}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.70rem',
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: '9999px',
+                              backgroundColor: stageApps.length > 0 ? '#8B5CF6' : '#94A3B8',
+                              color: '#FFFFFF',
+                            }}
+                          >
+                            {stageApps.length}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '120px' }}>
+                          {stageApps.length === 0 ? (
+                            <div style={{ fontSize: '0.72rem', color: '#94A3B8', textAlign: 'center', paddingTop: '30px' }}>
+                              No candidates in this stage
+                            </div>
+                          ) : (
+                            stageApps.map((app) => (
+                              <div
+                                key={app.id}
+                                style={{
+                                  backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                                  border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                                  borderRadius: '8px',
+                                  padding: '10px',
+                                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                }}
+                              >
+                                <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                                  {app.student_name || app.student_roll_no}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                                  {app.company_name} • {app.job_title}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                                  <span style={{ fontSize: '0.70rem', fontWeight: 700, color: '#10B981' }}>
+                                    Match: {app.match_score || 88}%
+                                  </span>
+                                  {stg !== 'ACCEPTED' && (
+                                    <button
+                                      onClick={() => {
+                                        const stageSequence = [
+                                          'REGISTERED',
+                                          'ELIGIBILITY_CHECK',
+                                          'TRAINING',
+                                          'ASSESSMENT',
+                                          'SHORTLISTED',
+                                          'APPLIED',
+                                          'INTERVIEW',
+                                          'OFFERED',
+                                          'ACCEPTED',
+                                        ];
+                                        const curIdx = stageSequence.indexOf(stg);
+                                        if (curIdx >= 0 && curIdx < stageSequence.length - 1) {
+                                          handleAdvanceStage(app.id, stageSequence[curIdx + 1]);
+                                        }
+                                      }}
+                                      style={{
+                                        border: 'none',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#8B5CF6',
+                                        color: '#FFFFFF',
+                                        fontSize: '0.68rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Advance →
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* VIEW 3: CORPORATE PARTNER OPENINGS */}
+            {activeTab === 'jobs' && (
+              <div
+                style={{
+                  backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+                  border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                  borderRadius: '16px',
+                  padding: '1.5rem',
+                }}
+              >
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>Corporate Partner Campus Recruitment Drives</h3>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                    Active hiring partner requirements, CTC packages, and eligibility criteria
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+                  {jobsData.map((job) => (
+                    <div
+                      key={job.id}
+                      style={{
+                        backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+                        border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                        borderRadius: '14px',
+                        padding: '1.25rem',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#8B5CF6' }}>{job.company_name}</div>
+                          <div style={{ fontSize: '0.84rem', fontWeight: 600 }}>{job.job_title}</div>
+                        </div>
+                        <span
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: '#10B981',
+                            color: '#FFFFFF',
+                            fontWeight: 800,
+                            fontSize: '0.76rem',
+                          }}
+                        >
+                          {job.package_lpa} LPA
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.78rem', margin: '10px 0', color: '#64748B' }}>
+                        <div>Min CGPA: <strong style={{ color: '#0F172A' }}>{job.min_cgpa}</strong></div>
+                        <div>Max Backlogs: <strong style={{ color: '#0F172A' }}>{job.max_backlogs}</strong></div>
+                        <div>Min DSA Score: <strong style={{ color: '#0F172A' }}>{job.min_dsa_score}/10</strong></div>
+                        <div>Min Aptitude: <strong style={{ color: '#0F172A' }}>{job.min_aptitude_score}%</strong></div>
+                      </div>
+
+                      <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                        <div>Required Skills: <strong style={{ color: '#8B5CF6' }}>{job.required_skills}</strong></div>
+                        <div style={{ marginTop: '2px' }}>Eligible Departments: <strong>{job.department_eligibility}</strong></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>

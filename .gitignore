@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 Frontend/node_modules/
 
@@ -37,12 +37,13 @@ __pycache__/
 *.db
 *.sqlite3
 *.sqlite
-*.backup
+*.backup*
 
 # Backup and temp logs
 Frontend - Copy/
 chrome_console.log
 scratch/
 .tempmediaStorage/
-
+CODEBUFFET-git/
 backend/codebuffet.db.pre_final_migration
+backend/codebuffet.db.backup*

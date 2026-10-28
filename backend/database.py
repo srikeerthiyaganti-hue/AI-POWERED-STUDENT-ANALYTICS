@@ -37,12 +37,53 @@ def init_db():
         roll_no TEXT UNIQUE,
         password_hash TEXT NOT NULL,
         full_name TEXT NOT NULL,
+        first_name TEXT,
+        last_name TEXT,
+        phone_number TEXT,
         role TEXT NOT NULL, -- 'admin', 'mentor', 'tpo', 'student'
         role_label TEXT NOT NULL,
         department TEXT NOT NULL,
         avatar_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'PENDING_APPROVAL', 'INACTIVE'
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    """)
+
+    # Safe upgrade of users table columns if upgrading existing database
+    cursor.execute("PRAGMA table_info(users)")
+    existing_user_cols = {col[1] for col in cursor.fetchall()}
+    if "first_name" not in existing_user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
+    if "last_name" not in existing_user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_name TEXT")
+    if "phone_number" not in existing_user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN phone_number TEXT")
+    if "status" not in existing_user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'ACTIVE'")
+    if "updated_at" not in existing_user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN updated_at TIMESTAMP")
+
+    cursor.execute("""
+    UPDATE users 
+    SET status = 'ACTIVE' 
+    WHERE status IS NULL OR status = ''
+    """)
+    cursor.execute("""
+    UPDATE users 
+    SET phone_number = '+91 9876543210' 
+    WHERE phone_number IS NULL OR phone_number = ''
+    """)
+    cursor.execute("""
+    UPDATE users 
+    SET updated_at = CURRENT_TIMESTAMP 
+    WHERE updated_at IS NULL
+    """)
+    cursor.execute("""
+    UPDATE users 
+    SET first_name = substr(full_name, 1, instr(full_name || ' ', ' ') - 1),
+        last_name = substr(full_name, instr(full_name || ' ', ' ') + 1)
+    WHERE first_name IS NULL OR first_name = ''
     """)
 
     # 2. Students Telemetry Table
@@ -98,20 +139,23 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_students_mentor ON students(assigned_mentor);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_students_score ON students(success_score);")
 
-    # One-time migration: categorize existing student records cleanly
+    # Categorize verified enrolled student records cleanly
     cursor.execute("""
         UPDATE students
         SET record_type = 'verified_profile',
             source_provenance = 'Official University Registrar (Enrolled B.Tech Cohort)',
             data_completeness = 100.0
-        WHERE roll_no LIKE 'STU-2024-%' OR roll_no LIKE 'STU-2026-%'
+        WHERE user_id IS NOT NULL 
+           OR roll_no IN ('STU-2024-042', 'STU-2024-001', 'STU-2024-019', 'STU-2024-088', 'STU-2024-112', 'STU-2024-054', 'STU-2024-067', 'STU-2024-093')
     """)
     cursor.execute("""
         UPDATE students
         SET record_type = 'anonymous_cohort',
             source_provenance = 'Kaggle Benchmark Dataset (kaggle.csv - 50,000 Records)',
             data_completeness = 94.1
-        WHERE roll_no NOT LIKE 'STU-2024-%' AND roll_no NOT LIKE 'STU-2026-%'
+        WHERE user_id IS NULL
+          AND roll_no NOT IN ('STU-2024-042', 'STU-2024-001', 'STU-2024-019', 'STU-2024-088', 'STU-2024-112', 'STU-2024-054', 'STU-2024-067', 'STU-2024-093')
+          AND record_type != 'verified_profile'
     """)
 
     # 3. Interventions & Mentoring Tasks
@@ -124,11 +168,222 @@ def init_db():
         title TEXT NOT NULL,
         category TEXT NOT NULL,
         assigned_mentor TEXT NOT NULL,
-        status TEXT NOT NULL, -- 'OPEN', 'COMPLETED'
+        status TEXT NOT NULL DEFAULT 'OPEN', -- 'OPEN', 'IN_PROGRESS', 'COMPLETED'
         due_date TEXT NOT NULL,
+        priority TEXT DEFAULT 'MEDIUM', -- 'HIGH', 'MEDIUM', 'LOW'
+        owner_role TEXT DEFAULT 'mentor', -- 'student', 'mentor', 'tpo'
+        completion_notes TEXT,
+        completed_at TIMESTAMP,
+        created_by TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
+
+    # Add missing columns to interventions if upgrading existing database
+    cursor.execute("PRAGMA table_info(interventions)")
+    existing_inter_cols = {col[1] for col in cursor.fetchall()}
+    if "priority" not in existing_inter_cols:
+        cursor.execute("ALTER TABLE interventions ADD COLUMN priority TEXT DEFAULT 'MEDIUM'")
+    if "owner_role" not in existing_inter_cols:
+        cursor.execute("ALTER TABLE interventions ADD COLUMN owner_role TEXT DEFAULT 'mentor'")
+    if "completion_notes" not in existing_inter_cols:
+        cursor.execute("ALTER TABLE interventions ADD COLUMN completion_notes TEXT")
+    if "completed_at" not in existing_inter_cols:
+        cursor.execute("ALTER TABLE interventions ADD COLUMN completed_at TIMESTAMP")
+    if "created_by" not in existing_inter_cols:
+        cursor.execute("ALTER TABLE interventions ADD COLUMN created_by TEXT")
+
+    # 4. Student Historical Telemetry (Performance & Attendance Progression)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS student_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_roll_no TEXT NOT NULL,
+        metric_type TEXT NOT NULL, -- 'cgpa', 'attendance', 'success_score', 'coding_skills', 'dsa_score', 'risk_band'
+        semester INTEGER,
+        period_label TEXT NOT NULL, -- e.g. 'Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Sem 5', 'Sem 6'
+        value REAL NOT NULL,
+        notes TEXT,
+        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (student_roll_no) REFERENCES students (roll_no)
+    );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_roll ON student_history(student_roll_no);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_metric ON student_history(metric_type);")
+
+    # 5. Placement Jobs & Company Management
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS placement_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        company_name TEXT NOT NULL,
+        job_title TEXT NOT NULL,
+        description TEXT,
+        min_cgpa REAL DEFAULT 7.0,
+        max_backlogs INTEGER DEFAULT 0,
+        min_dsa_score REAL DEFAULT 6.0,
+        min_aptitude_score REAL DEFAULT 60.0,
+        required_skills TEXT,
+        department_eligibility TEXT DEFAULT 'ALL',
+        deadline TEXT,
+        package_lpa REAL,
+        recruitment_stage TEXT DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_placement_jobs_company ON placement_jobs(company_name);")
+
+    # 6. Placement Recruitment Pipeline & Applications
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS placement_applications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL,
+        student_roll_no TEXT NOT NULL,
+        student_name TEXT NOT NULL,
+        department TEXT NOT NULL,
+        stage TEXT NOT NULL DEFAULT 'REGISTERED',
+        -- Pipeline: REGISTERED, ELIGIBILITY_CHECK, TRAINING, ASSESSMENT, SHORTLISTED, APPLIED, INTERVIEW, OFFERED, ACCEPTED, REJECTED
+        match_score REAL,
+        eligibility_status TEXT DEFAULT 'ELIGIBLE',
+        notes TEXT,
+        updated_by TEXT,
+        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (job_id) REFERENCES placement_jobs (id),
+        FOREIGN KEY (student_roll_no) REFERENCES students (roll_no)
+    );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_applications_job ON placement_applications(job_id);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_applications_student ON placement_applications(student_roll_no);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_applications_stage ON placement_applications(stage);")
+
+    # 7. Security Audit History
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_email TEXT,
+        user_role TEXT,
+        action TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id TEXT,
+        details TEXT,
+        ip_address TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_logs(timestamp);")
+
+    # 4. Seed Historical Telemetry (Real Semester Progression for Verified Students)
+    historical_telemetry = [
+        # Aarav Sharma (STU-2024-042, Sem 6, CS)
+        ("STU-2024-042", "cgpa", 1, "Sem 1", 7.85, "First year foundations"),
+        ("STU-2024-042", "cgpa", 2, "Sem 2", 8.02, "Data Structures introduction"),
+        ("STU-2024-042", "cgpa", 3, "Sem 3", 8.20, "Algorithms & OOP"),
+        ("STU-2024-042", "cgpa", 4, "Sem 4", 8.31, "Operating Systems & DBMS"),
+        ("STU-2024-042", "cgpa", 5, "Sem 5", 8.40, "Computer Networks & Cloud"),
+        ("STU-2024-042", "cgpa", 6, "Sem 6", 8.42, "Current active semester"),
+        ("STU-2024-042", "attendance", 1, "Sem 1", 82.0, None),
+        ("STU-2024-042", "attendance", 2, "Sem 2", 85.0, None),
+        ("STU-2024-042", "attendance", 3, "Sem 3", 86.5, None),
+        ("STU-2024-042", "attendance", 4, "Sem 4", 87.0, None),
+        ("STU-2024-042", "attendance", 5, "Sem 5", 88.0, None),
+        ("STU-2024-042", "attendance", 6, "Sem 6", 88.5, None),
+        ("STU-2024-042", "success_score", 1, "Sem 1", 74.0, None),
+        ("STU-2024-042", "success_score", 2, "Sem 2", 77.5, None),
+        ("STU-2024-042", "success_score", 3, "Sem 3", 80.2, None),
+        ("STU-2024-042", "success_score", 4, "Sem 4", 82.5, None),
+        ("STU-2024-042", "success_score", 5, "Sem 5", 84.1, None),
+        ("STU-2024-042", "success_score", 6, "Sem 6", 85.4, None),
+
+        # Rajesh Kumar (STU-2024-001, Sem 6, CS - In At-Risk Remedial)
+        ("STU-2024-001", "cgpa", 1, "Sem 1", 7.10, "Initial enrollment"),
+        ("STU-2024-001", "cgpa", 2, "Sem 2", 6.80, "Declined in Core Math"),
+        ("STU-2024-001", "cgpa", 3, "Sem 3", 6.45, "DSA backlogs acquired"),
+        ("STU-2024-001", "cgpa", 4, "Sem 4", 6.20, "Attendance shortage flagged"),
+        ("STU-2024-001", "cgpa", 5, "Sem 5", 6.12, "Remedial coaching started"),
+        ("STU-2024-001", "cgpa", 6, "Sem 6", 6.10, "Current active semester"),
+        ("STU-2024-001", "attendance", 1, "Sem 1", 76.0, None),
+        ("STU-2024-001", "attendance", 2, "Sem 2", 72.0, None),
+        ("STU-2024-001", "attendance", 3, "Sem 3", 68.0, None),
+        ("STU-2024-001", "attendance", 4, "Sem 4", 65.5, None),
+        ("STU-2024-001", "attendance", 5, "Sem 5", 63.8, None),
+        ("STU-2024-001", "attendance", 6, "Sem 6", 64.0, None),
+
+        # Sneha Reddy (STU-2024-019, Sem 4, ECE)
+        ("STU-2024-019", "cgpa", 1, "Sem 1", 7.60, None),
+        ("STU-2024-019", "cgpa", 2, "Sem 2", 7.50, None),
+        ("STU-2024-019", "cgpa", 3, "Sem 3", 7.35, None),
+        ("STU-2024-019", "cgpa", 4, "Sem 4", 7.40, None),
+
+        # Ananya Verma (STU-2024-112, Sem 6, CSE - Top Tier-1)
+        ("STU-2024-112", "cgpa", 1, "Sem 1", 8.90, None),
+        ("STU-2024-112", "cgpa", 2, "Sem 2", 9.00, None),
+        ("STU-2024-112", "cgpa", 3, "Sem 3", 9.08, None),
+        ("STU-2024-112", "cgpa", 4, "Sem 4", 9.12, None),
+        ("STU-2024-112", "cgpa", 5, "Sem 5", 9.14, None),
+        ("STU-2024-112", "cgpa", 6, "Sem 6", 9.15, None),
+    ]
+
+    for item in historical_telemetry:
+        cursor.execute("""
+        SELECT id FROM student_history
+        WHERE student_roll_no = ? AND metric_type = ? AND period_label = ?
+        """, (item[0], item[1], item[3]))
+        if not cursor.fetchone():
+            cursor.execute("""
+            INSERT INTO student_history (student_roll_no, metric_type, semester, period_label, value, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, item)
+
+    # 5. Seed Placement Corporate Openings
+    jobs_to_seed = [
+        ("Microsoft", "Software Development Engineer (Full Time)", "Core distributed systems, cloud microservices, and high-performance algorithms.", 8.0, 0, 7.5, 75.0, "Python, C++, DSA, Cloud Architecture", "Computer Science & Engineering, Information Technology, Artificial Intelligence & Machine Learning", "Nov 30, 2026", 44.0, "ACTIVE"),
+        ("KPMG Global Services", "Cloud & Analytics Consultant", "Enterprise transformation, big data pipeline engineering, predictive models.", 7.0, 0, 6.0, 65.0, "SQL, Python, Data Analytics, Cloud Fundamentals", "ALL", "Dec 15, 2026", 14.5, "ACTIVE"),
+        ("Amazon", "SDE Intern (Summer 2027)", "Full-stack cloud applications, DynamoDB, resilient microservices.", 7.5, 0, 7.0, 70.0, "Java, DSA, Object-Oriented Design, AWS", "Computer Science & Engineering, Information Technology, Electronics & Communication", "Nov 20, 2026", 28.0, "ACTIVE"),
+        ("Texas Instruments", "Embedded Systems Engineer", "Real-time operating systems, microcontroller architecture, low-power IoT circuits.", 7.5, 0, 6.0, 65.0, "Embedded C, Microcontrollers, RTOS, Circuit Design", "Electronics & Communication, Electrical & Electronics", "Dec 05, 2026", 22.0, "ACTIVE"),
+        ("Infosys", "Specialist Programmer", "High-velocity product development, modern web frameworks, scalable APIs.", 6.5, 1, 5.5, 60.0, "JavaScript, Python, Algorithms, Database Management", "ALL", "Dec 20, 2026", 9.5, "ACTIVE"),
+    ]
+
+    for job in jobs_to_seed:
+        cursor.execute("SELECT id FROM placement_jobs WHERE company_name = ? AND job_title = ?", (job[0], job[1]))
+        if not cursor.fetchone():
+            cursor.execute("""
+            INSERT INTO placement_jobs (company_name, job_title, description, min_cgpa, max_backlogs, min_dsa_score, min_aptitude_score, required_skills, department_eligibility, deadline, package_lpa, recruitment_stage)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, job)
+
+    # 6. Seed Initial Recruitment Pipeline Applications
+    cursor.execute("SELECT id, company_name FROM placement_jobs")
+    job_map = {r["company_name"]: r["id"] for r in cursor.fetchall()}
+
+    pipeline_to_seed = [
+        # Aarav Sharma applied to Microsoft
+        (job_map.get("Microsoft", 1), "STU-2024-042", "Aarav Sharma", "Computer Science & Engineering", "INTERVIEW", 92.5, "ELIGIBLE", "Passed Technical Screen with 92% DSA score", "System"),
+        # Ananya Verma applied to Microsoft
+        (job_map.get("Microsoft", 1), "STU-2024-112", "Ananya Verma", "Computer Science & Engineering", "OFFERED", 96.0, "ELIGIBLE", "Final interview cleared, offer letter released", "System"),
+        # Vamsi Krishna applied to KPMG
+        (job_map.get("KPMG Global Services", 2), "STU-2024-088", "Vamsi Krishna", "Information Technology", "SHORTLISTED", 89.0, "ELIGIBLE", "Shortlisted for Round 2 Analytics assessment", "System"),
+        # Sneha Reddy applied to Texas Instruments
+        (job_map.get("Texas Instruments", 4), "STU-2024-019", "Sneha Reddy", "Electronics & Communication", "TRAINING", 76.0, "ELIGIBLE", "In Embedded systems preparation cohort", "System"),
+        # Pooja Hegde applied to Texas Instruments
+        (job_map.get("Texas Instruments", 4), "STU-2024-067", "Pooja Hegde", "Electrical & Electronics", "ASSESSMENT", 81.5, "ELIGIBLE", "Completed Online Technical Assessment", "System"),
+        # Priya Sharma applied to Amazon
+        (job_map.get("Amazon", 3), "STU-2024-101", "Priya Sharma", "Computer Science & Engineering", "APPLIED", 88.0, "ELIGIBLE", "Resume screened and approved", "System"),
+        # Arjun Nair applied to Amazon
+        (job_map.get("Amazon", 3), "STU-2024-102", "Arjun Nair", "Artificial Intelligence & Machine Learning", "SHORTLISTED", 84.5, "ELIGIBLE", "Coding round cleared", "System"),
+        # Rajesh Kumar applied to Infosys
+        (job_map.get("Infosys", 5), "STU-2024-001", "Rajesh Kumar", "Computer Science & Engineering", "ELIGIBILITY_CHECK", 54.0, "NEEDS_REVIEW", "CGPA 6.1 meets minimum, requires backlog clearance", "System"),
+    ]
+
+    for app_item in pipeline_to_seed:
+        cursor.execute("""
+        SELECT id FROM placement_applications
+        WHERE job_id = ? AND student_roll_no = ?
+        """, (app_item[0], app_item[1]))
+        if not cursor.fetchone():
+            cursor.execute("""
+            INSERT INTO placement_applications (job_id, student_roll_no, student_name, department, stage, match_score, eligibility_status, notes, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, app_item)
 
     conn.commit()
     conn.close()
@@ -287,5 +542,145 @@ def seed_initial_data():
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, item)
 
+    # 4. Seed Historical Telemetry (Real Semester Progression for Verified Students)
+    historical_telemetry = [
+        # Aarav Sharma (STU-2024-042, Sem 6, CS)
+        ("STU-2024-042", "cgpa", 1, "Sem 1", 7.85, "First year foundations"),
+        ("STU-2024-042", "cgpa", 2, "Sem 2", 8.02, "Data Structures introduction"),
+        ("STU-2024-042", "cgpa", 3, "Sem 3", 8.20, "Algorithms & OOP"),
+        ("STU-2024-042", "cgpa", 4, "Sem 4", 8.31, "Operating Systems & DBMS"),
+        ("STU-2024-042", "cgpa", 5, "Sem 5", 8.40, "Computer Networks & Cloud"),
+        ("STU-2024-042", "cgpa", 6, "Sem 6", 8.42, "Current active semester"),
+        ("STU-2024-042", "attendance", 1, "Sem 1", 82.0, None),
+        ("STU-2024-042", "attendance", 2, "Sem 2", 85.0, None),
+        ("STU-2024-042", "attendance", 3, "Sem 3", 86.5, None),
+        ("STU-2024-042", "attendance", 4, "Sem 4", 87.0, None),
+        ("STU-2024-042", "attendance", 5, "Sem 5", 88.0, None),
+        ("STU-2024-042", "attendance", 6, "Sem 6", 88.5, None),
+        ("STU-2024-042", "success_score", 1, "Sem 1", 74.0, None),
+        ("STU-2024-042", "success_score", 2, "Sem 2", 77.5, None),
+        ("STU-2024-042", "success_score", 3, "Sem 3", 80.2, None),
+        ("STU-2024-042", "success_score", 4, "Sem 4", 82.5, None),
+        ("STU-2024-042", "success_score", 5, "Sem 5", 84.1, None),
+        ("STU-2024-042", "success_score", 6, "Sem 6", 85.4, None),
+
+        # Rajesh Kumar (STU-2024-001, Sem 6, CS - In At-Risk Remedial)
+        ("STU-2024-001", "cgpa", 1, "Sem 1", 7.10, "Initial enrollment"),
+        ("STU-2024-001", "cgpa", 2, "Sem 2", 6.80, "Declined in Core Math"),
+        ("STU-2024-001", "cgpa", 3, "Sem 3", 6.45, "DSA backlogs acquired"),
+        ("STU-2024-001", "cgpa", 4, "Sem 4", 6.20, "Attendance shortage flagged"),
+        ("STU-2024-001", "cgpa", 5, "Sem 5", 6.12, "Remedial coaching started"),
+        ("STU-2024-001", "cgpa", 6, "Sem 6", 6.10, "Current active semester"),
+        ("STU-2024-001", "attendance", 1, "Sem 1", 76.0, None),
+        ("STU-2024-001", "attendance", 2, "Sem 2", 72.0, None),
+        ("STU-2024-001", "attendance", 3, "Sem 3", 68.0, None),
+        ("STU-2024-001", "attendance", 4, "Sem 4", 65.5, None),
+        ("STU-2024-001", "attendance", 5, "Sem 5", 63.8, None),
+        ("STU-2024-001", "attendance", 6, "Sem 6", 64.0, None),
+
+        # Sneha Reddy (STU-2024-019, Sem 4, ECE)
+        ("STU-2024-019", "cgpa", 1, "Sem 1", 7.60, None),
+        ("STU-2024-019", "cgpa", 2, "Sem 2", 7.50, None),
+        ("STU-2024-019", "cgpa", 3, "Sem 3", 7.35, None),
+        ("STU-2024-019", "cgpa", 4, "Sem 4", 7.40, None),
+
+        # Ananya Verma (STU-2024-112, Sem 6, CSE - Top Tier-1)
+        ("STU-2024-112", "cgpa", 1, "Sem 1", 8.90, None),
+        ("STU-2024-112", "cgpa", 2, "Sem 2", 9.00, None),
+        ("STU-2024-112", "cgpa", 3, "Sem 3", 9.08, None),
+        ("STU-2024-112", "cgpa", 4, "Sem 4", 9.12, None),
+        ("STU-2024-112", "cgpa", 5, "Sem 5", 9.14, None),
+        ("STU-2024-112", "cgpa", 6, "Sem 6", 9.15, None),
+    ]
+
+    for item in historical_telemetry:
+        cursor.execute("""
+        SELECT id FROM student_history
+        WHERE student_roll_no = ? AND metric_type = ? AND period_label = ?
+        """, (item[0], item[1], item[3]))
+        if not cursor.fetchone():
+            cursor.execute("""
+            INSERT INTO student_history (student_roll_no, metric_type, semester, period_label, value, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, item)
+
+    # 5. Seed Placement Corporate Openings
+    jobs_to_seed = [
+        ("Microsoft", "Software Development Engineer (Full Time)", "Core distributed systems, cloud microservices, and high-performance algorithms.", 8.0, 0, 7.5, 75.0, "Python, C++, DSA, Cloud Architecture", "Computer Science & Engineering, Information Technology, Artificial Intelligence & Machine Learning", "Nov 30, 2026", 44.0, "ACTIVE"),
+        ("KPMG Global Services", "Cloud & Analytics Consultant", "Enterprise transformation, big data pipeline engineering, predictive models.", 7.0, 0, 6.0, 65.0, "SQL, Python, Data Analytics, Cloud Fundamentals", "ALL", "Dec 15, 2026", 14.5, "ACTIVE"),
+        ("Amazon", "SDE Intern (Summer 2027)", "Full-stack cloud applications, DynamoDB, resilient microservices.", 7.5, 0, 7.0, 70.0, "Java, DSA, Object-Oriented Design, AWS", "Computer Science & Engineering, Information Technology, Electronics & Communication", "Nov 20, 2026", 28.0, "ACTIVE"),
+        ("Texas Instruments", "Embedded Systems Engineer", "Real-time operating systems, microcontroller architecture, low-power IoT circuits.", 7.5, 0, 6.0, 65.0, "Embedded C, Microcontrollers, RTOS, Circuit Design", "Electronics & Communication, Electrical & Electronics", "Dec 05, 2026", 22.0, "ACTIVE"),
+        ("Infosys", "Specialist Programmer", "High-velocity product development, modern web frameworks, scalable APIs.", 6.5, 1, 5.5, 60.0, "JavaScript, Python, Algorithms, Database Management", "ALL", "Dec 20, 2026", 9.5, "ACTIVE"),
+    ]
+
+    for job in jobs_to_seed:
+        cursor.execute("SELECT id FROM placement_jobs WHERE company_name = ? AND job_title = ?", (job[0], job[1]))
+        if not cursor.fetchone():
+            cursor.execute("""
+            INSERT INTO placement_jobs (company_name, job_title, description, min_cgpa, max_backlogs, min_dsa_score, min_aptitude_score, required_skills, department_eligibility, deadline, package_lpa, recruitment_stage)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, job)
+
+    # 6. Seed Initial Recruitment Pipeline Applications
+    cursor.execute("SELECT id, company_name FROM placement_jobs")
+    job_map = {r["company_name"]: r["id"] for r in cursor.fetchall()}
+
+    pipeline_to_seed = [
+        # Aarav Sharma applied to Microsoft
+        (job_map.get("Microsoft", 1), "STU-2024-042", "Aarav Sharma", "Computer Science & Engineering", "INTERVIEW", 92.5, "ELIGIBLE", "Passed Technical Screen with 92% DSA score", "System"),
+        # Ananya Verma applied to Microsoft
+        (job_map.get("Microsoft", 1), "STU-2024-112", "Ananya Verma", "Computer Science & Engineering", "OFFERED", 96.0, "ELIGIBLE", "Final interview cleared, offer letter released", "System"),
+        # Vamsi Krishna applied to KPMG
+        (job_map.get("KPMG Global Services", 2), "STU-2024-088", "Vamsi Krishna", "Information Technology", "SHORTLISTED", 89.0, "ELIGIBLE", "Shortlisted for Round 2 Analytics assessment", "System"),
+        # Sneha Reddy applied to Texas Instruments
+        (job_map.get("Texas Instruments", 4), "STU-2024-019", "Sneha Reddy", "Electronics & Communication", "TRAINING", 76.0, "ELIGIBLE", "In Embedded systems preparation cohort", "System"),
+        # Pooja Hegde applied to Texas Instruments
+        (job_map.get("Texas Instruments", 4), "STU-2024-067", "Pooja Hegde", "Electrical & Electronics", "ASSESSMENT", 81.5, "ELIGIBLE", "Completed Online Technical Assessment", "System"),
+        # Priya Sharma applied to Amazon
+        (job_map.get("Amazon", 3), "STU-2024-101", "Priya Sharma", "Computer Science & Engineering", "APPLIED", 88.0, "ELIGIBLE", "Resume screened and approved", "System"),
+        # Arjun Nair applied to Amazon
+        (job_map.get("Amazon", 3), "STU-2024-102", "Arjun Nair", "Artificial Intelligence & Machine Learning", "SHORTLISTED", 84.5, "ELIGIBLE", "Coding round cleared", "System"),
+        # Rajesh Kumar applied to Infosys
+        (job_map.get("Infosys", 5), "STU-2024-001", "Rajesh Kumar", "Computer Science & Engineering", "ELIGIBILITY_CHECK", 54.0, "NEEDS_REVIEW", "CGPA 6.1 meets minimum, requires backlog clearance", "System"),
+    ]
+
+    for app_item in pipeline_to_seed:
+        cursor.execute("""
+        SELECT id FROM placement_applications
+        WHERE job_id = ? AND student_roll_no = ?
+        """, (app_item[0], app_item[1]))
+        if not cursor.fetchone():
+            cursor.execute("""
+            INSERT INTO placement_applications (job_id, student_roll_no, student_name, department, stage, match_score, eligibility_status, notes, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, app_item)
+
     conn.commit()
     conn.close()
+
+
+def record_audit_log(
+    conn_or_cursor,
+    user_email: Optional[str],
+    user_role: Optional[str],
+    action: str,
+    resource_type: str,
+    resource_id: Optional[str] = None,
+    details: Optional[str] = None,
+    ip_address: Optional[str] = None
+):
+    """Appends a security and workflow audit event to the audit_logs table."""
+    try:
+        sql = """
+        INSERT INTO audit_logs (user_email, user_role, action, resource_type, resource_id, details, ip_address)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (user_email, user_role, action, resource_type, str(resource_id) if resource_id else None, details, ip_address)
+        if isinstance(conn_or_cursor, sqlite3.Connection):
+            c = conn_or_cursor.cursor()
+            c.execute(sql, params)
+            conn_or_cursor.commit()
+        else:
+            conn_or_cursor.execute(sql, params)
+    except Exception as e:
+        print(f"[AUDIT LOG WARNING] Failed to record audit log: {e}")

@@ -15,6 +15,40 @@ export function AuthProvider({ children }) {
 
   const [backendStatus, setBackendStatus] = useState('checking'); // 'connected' | 'offline' | 'checking'
   const [authLoading, setAuthLoading] = useState(false);
+  const [isInitialChecking, setIsInitialChecking] = useState(true);
+
+  // Validate session against backend on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function validateSession() {
+      const token = sessionStorage.getItem('codebuffet_access_token');
+      if (token) {
+        try {
+          const profile = await api.getMe();
+          if (isMounted && profile?.email) {
+            setCurrentUser(profile);
+            sessionStorage.setItem('codebuffet_user', JSON.stringify(profile));
+          }
+        } catch {
+          if (isMounted) {
+            setCurrentUser(null);
+            sessionStorage.removeItem('codebuffet_access_token');
+            sessionStorage.removeItem('codebuffet_user');
+          }
+        }
+      } else {
+        if (isMounted) {
+          setCurrentUser(null);
+          sessionStorage.removeItem('codebuffet_user');
+        }
+      }
+      if (isMounted) {
+        setIsInitialChecking(false);
+      }
+    }
+    validateSession();
+    return () => { isMounted = false; };
+  }, []);
 
   // Check backend health on initial load
   const checkBackend = useCallback(async () => {
@@ -51,6 +85,19 @@ export function AuthProvider({ children }) {
    * Secure Sign In with Backend API
    * Authenticates against FastAPI backend via PBKDF2 hash verification.
    */
+  /**
+   * Register with Backend API
+   */
+  const register = async (registrationData) => {
+    setAuthLoading(true);
+    try {
+      const response = await api.register(registrationData);
+      return response;
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const login = async (identifier, password, role) => {
     setAuthLoading(true);
     try {
@@ -157,7 +204,9 @@ export function AuthProvider({ children }) {
         login,
         logout,
         loginWithDemo,
+        register,
         authLoading,
+        isInitialChecking,
         backendStatus,
         checkBackend,
       }}

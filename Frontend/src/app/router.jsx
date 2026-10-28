@@ -2,18 +2,35 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '../pages/public/LandingPage';
 import LoginPage from '../pages/public/LoginPage';
+import RegisterPage from '../pages/public/RegisterPage';
 import CampusDashboard from '../pages/institution/CampusDashboard';
 import MentorDashboard from '../pages/institution/MentorDashboard';
 import PlacementDashboard from '../pages/institution/PlacementDashboard';
 import StudentDashboard from '../pages/student/StudentDashboard';
 import NotFoundPage from '../pages/NotFoundPage';
 import { useAuth } from '../context/AuthContext';
+import { Loader2 } from 'lucide-react';
+
+function getRoleRedirect(role) {
+  if (role === 'student') return '/student/dashboard';
+  if (role === 'mentor') return '/mentor/dashboard';
+  if (role === 'tpo') return '/placement/dashboard';
+  return '/institution/dashboard';
+}
 
 /**
  * Route protection wrapper enforcing authentication and role-based permissions.
  */
 function ProtectedRoute({ children, allowedRoles }) {
-  const { currentUser, isAuthenticated } = useAuth();
+  const { currentUser, isAuthenticated, isInitialChecking } = useAuth();
+
+  if (isInitialChecking) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F172A', color: '#94A3B8' }}>
+        <Loader2 size={32} className="animate-spin" style={{ color: '#3B82F6' }} />
+      </div>
+    );
+  }
 
   const user = currentUser || (() => {
     try {
@@ -29,26 +46,51 @@ function ProtectedRoute({ children, allowedRoles }) {
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    // Gracefully redirect user to their authorized dashboard
-    if (user.role === 'student') {
-      return <Navigate to="/student/dashboard" replace />;
-    } else if (user.role === 'mentor') {
-      return <Navigate to="/mentor/dashboard" replace />;
-    } else if (user.role === 'tpo') {
-      return <Navigate to="/placement/dashboard" replace />;
-    }
-    return <Navigate to="/institution/dashboard" replace />;
+    return <Navigate to={getRoleRedirect(user.role)} replace />;
   }
 
   return children;
 }
 
+/**
+ * Root router component: displays Login by default to unauthenticated visitors;
+ * redirects authenticated users to their authorized dashboard.
+ */
+function RootIndexRoute() {
+  const { currentUser, isAuthenticated, isInitialChecking } = useAuth();
+
+  if (isInitialChecking) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F172A', color: '#94A3B8' }}>
+        <Loader2 size={32} className="animate-spin" style={{ color: '#3B82F6' }} />
+      </div>
+    );
+  }
+
+  const user = currentUser || (() => {
+    try {
+      const stored = sessionStorage.getItem('codebuffet_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (isAuthenticated && user?.role) {
+    return <Navigate to={getRoleRedirect(user.role)} replace />;
+  }
+
+  return <LoginPage />;
+}
+
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public Routes */}
-      <Route path="/" element={<LandingPage />} />
+      {/* Root Route: Shows Login by default; redirects if authenticated */}
+      <Route path="/" element={<RootIndexRoute />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/platform" element={<LandingPage />} />
 
       {/* Admin Institution Analytics Portal */}
       <Route
