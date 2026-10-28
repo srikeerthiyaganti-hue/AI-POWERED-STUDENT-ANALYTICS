@@ -34,7 +34,12 @@ app = FastAPI(
 )
 
 # Allowed Origins for CORS
+
+# Allowed Origins for CORS
 ALLOWED_ORIGINS = [
+    # Render production frontend
+    "https://ai-powered-student-analytics-frontend.onrender.com",
+
     # Local development
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -45,19 +50,15 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 
-    # Production Vercel canonical domain
+    # Production Vercel domains
     "https://ai-powered-student-analytics.vercel.app",
-
-    # Team / User domain
     "https://ai-powered-student-analytics-srikeerthiyaganti-hue.vercel.app",
-
-    # Verified deployment URLs & aliases
     "https://ai-powered-student-analytics-three.vercel.app",
     "https://ai-powered-student-analytics-g5yyvnry9-srikeerthiyaganti-hue.vercel.app",
     "https://ai-powered-student-analytics-qcqmmkbec-srikeerthiyaganti-hue.vercel.app",
 ]
 
-# Optional environment override from Render/deployment settings
+# Optional environment override from Render
 _env_frontend = os.getenv("FRONTEND_URL", "").strip()
 if _env_frontend and _env_frontend not in ALLOWED_ORIGINS:
     ALLOWED_ORIGINS.append(_env_frontend)
@@ -70,6 +71,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 app.include_router(auth_router)
 app.include_router(institution_router)
