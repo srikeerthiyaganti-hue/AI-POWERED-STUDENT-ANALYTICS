@@ -1,10 +1,10 @@
 
-
 fastapi
 uvicorn[standard]
-pandas
-numpy
-joblib
+python-dotenv
 PyJWT
-email-validator
+numpy
+pandas
 scikit-learn
+joblib
+lightgbm
