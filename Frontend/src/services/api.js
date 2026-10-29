@@ -123,6 +123,10 @@ export const api = {
   },
 
   getMentors: () => request('/api/institution/mentors'),
+  getMentorSummary: (mentor) => {
+    const qs = mentor ? `?mentor=${encodeURIComponent(mentor)}` : '';
+    return request(`/api/institution/mentor/summary${qs}`);
+  },
 
   simulateCohort: (simulationParams) =>
     request('/api/institution/simulate-cohort', {
@@ -208,6 +212,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(studentData),
     }),
+
+  enrollMentor: (mentorData) =>
+    request('/api/institution/mentors', {
+      method: 'POST',
+      body: JSON.stringify(mentorData),
+    }),
+
+  enrollPlacementOfficer: (officerData) =>
+    request('/api/institution/placement-officers', {
+      method: 'POST',
+      body: JSON.stringify(officerData),
+    }),
+
+  getPlacementOfficers: () => request('/api/institution/placement-officers'),
 
   assignMentor: (rollNo, mentorName) =>
     request('/api/institution/students/assign-mentor', {

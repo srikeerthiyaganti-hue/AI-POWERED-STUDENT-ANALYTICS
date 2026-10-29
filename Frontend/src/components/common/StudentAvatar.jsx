@@ -12,6 +12,12 @@ const AVATAR_GRADIENTS = [
   'linear-gradient(135deg, #15803D 0%, #22C55E 100%)', // Forest
   'linear-gradient(135deg, #374151 0%, #6B7280 100%)', // Slate
   'linear-gradient(135deg, #4C1D95 0%, #8B5CF6 100%)', // Violet
+  'linear-gradient(135deg, #047857 0%, #10B981 100%)', // Mint Green
+  'linear-gradient(135deg, #C2410C 0%, #FB923C 100%)', // Sunset Orange
+  'linear-gradient(135deg, #9D174D 0%, #EC4899 100%)', // Pink Berry
+  'linear-gradient(135deg, #1E40AF 0%, #60A5FA 100%)', // Royal Blue
+  'linear-gradient(135deg, #164E63 0%, #06B6D4 100%)', // Ocean Cyan
+  'linear-gradient(135deg, #312E81 0%, #818CF8 100%)', // Electric Indigo
 ];
 
 function getInitials(name, id) {

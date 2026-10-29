@@ -29,10 +29,10 @@ import { useAuth } from '../../context/AuthContext';
 import { MOCK_STUDENTS } from '../../data/mockStudents';
 import api from '../../services/api';
 
-const MENTOR_DISTRIBUTION = [
-  { name: 'On Track (Low Risk)', value: 75, color: '#10B981' },
-  { name: 'Moderate Risk', value: 15, color: '#F59E0B' },
-  { name: 'High Risk (Action Needed)', value: 10, color: '#EF4444' },
+const DEFAULT_DISTRIBUTION = [
+  { name: 'On Track (Low Risk)', value: 0, count: 0, color: '#10B981' },
+  { name: 'Moderate Risk', value: 0, count: 0, color: '#F59E0B' },
+  { name: 'High Risk (Action Needed)', value: 0, count: 0, color: '#EF4444' },
 ];
 
 export default function MentorDashboard() {
@@ -58,13 +58,30 @@ export default function MentorDashboard() {
   const [submittingTask, setSubmittingTask] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Pagination & Filtering States
+  // Pagination & Filtering States (Calculated Dynamically from SQLite Database)
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalMentees, setTotalMentees] = useState(20447);
-  const [totalPages, setTotalPages] = useState(409);
+  const [totalMentees, setTotalMentees] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [cohortFilter, setCohortFilter] = useState('all'); // 'all' | 'verified_profile' | 'high_risk'
-  const [verifiedCount, setVerifiedCount] = useState(3);
-  const [cohortCount, setCohortCount] = useState(20444);
+  const [verifiedCount, setVerifiedCount] = useState(0);
+  const [cohortCount, setCohortCount] = useState(0);
+  const [highRiskCount, setHighRiskCount] = useState(0);
+  const [withBacklogsCount, setWithBacklogsCount] = useState(0);
+  const [riskDistribution, setRiskDistribution] = useState(DEFAULT_DISTRIBUTION);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [mentorStats, setMentorStats] = useState({
+    total_mentees: 0,
+    verified_count: 0,
+    cohort_count: 0,
+    high_risk_count: 0,
+    medium_risk_count: 0,
+    low_risk_count: 0,
+    with_backlogs_count: 0,
+    avg_cgpa: 7.0,
+    avg_attendance: 75.0,
+    avg_success_score: 65.0,
+    distribution: DEFAULT_DISTRIBUTION,
+  });
 
   // New Task Form State
   const [newTaskRoll, setNewTaskRoll] = useState('STU-2024-001');
@@ -73,104 +90,144 @@ export default function MentorDashboard() {
   const [newTaskCategory, setNewTaskCategory] = useState('ATTENDANCE');
   const [newTaskDueDate, setNewTaskDueDate] = useState('Nov 10, 2026');
 
-  // Load Mentees & Interventions
+  // Debounce search query to prevent excessive API invocations
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Load Mentor Live Summary Metrics & Actual Risk Segmentation from Database
   useEffect(() => {
     let isMounted = true;
-    async function fetchMentorData() {
+    async function loadMentorSummary() {
+      try {
+        const mentorName = currentUser?.name || currentUser?.full_name || 'Prof. Rajesh Kumar';
+        const cleanName = mentorName.replace(/^Prof\.\s*/i, '').replace(/^Dr\.\s*/i, '').trim();
+        const res = await api.getMentorSummary(cleanName);
+        if (isMounted && res && res.total_mentees !== undefined) {
+          setMentorStats(res);
+          setVerifiedCount(res.verified_count || 0);
+          setCohortCount(res.cohort_count || 0);
+          setHighRiskCount(res.high_risk_count || 0);
+          setWithBacklogsCount(res.with_backlogs_count || 0);
+          if (res.distribution && res.distribution.length > 0) {
+            setRiskDistribution(res.distribution);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load mentor summary from API:', err);
+      }
+    }
+    loadMentorSummary();
+    return () => { isMounted = false; };
+  }, [currentUser]);
+
+  // Load Interventions for Assigned Mentor
+  useEffect(() => {
+    let isMounted = true;
+    async function loadInterventions() {
+      try {
+        const mentorName = currentUser?.name || currentUser?.full_name || 'Prof. Rajesh Kumar';
+        const cleanName = mentorName.replace(/^Prof\.\s*/i, '').replace(/^Dr\.\s*/i, '').trim();
+        const res = await api.getInterventions(cleanName);
+        if (isMounted && Array.isArray(res) && res.length > 0) {
+          setInterventions(res);
+        } else {
+          try {
+            const fullRes = await api.getInterventions(mentorName);
+            if (isMounted && Array.isArray(fullRes) && fullRes.length > 0) {
+              setInterventions(fullRes);
+            }
+          } catch {}
+        }
+      } catch (err) {
+        console.warn('Failed to load interventions:', err);
+      }
+    }
+    loadInterventions();
+    return () => { isMounted = false; };
+  }, [currentUser]);
+
+  // Load Paginated, Filtered, and Sorted Mentees from Live Backend API
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchPaginatedMentees() {
       if (isMounted) setLoading(true);
       try {
         const mentorName = currentUser?.name || currentUser?.full_name || 'Prof. Rajesh Kumar';
         const cleanName = mentorName.replace(/^Prof\.\s*/i, '').replace(/^Dr\.\s*/i, '').trim();
-        const [studRes, intervRes] = await Promise.allSettled([
-          api.getInstitutionStudents({ mentor: cleanName }),
-          api.getInterventions(cleanName),
-        ]);
+
+        const params = {
+          mentor: cleanName,
+          page: currentPage,
+          pageSize: 50,
+        };
+
+        if (cohortFilter === 'verified_profile') {
+          params.recordType = 'verified_profile';
+        } else if (cohortFilter === 'high_risk') {
+          params.academicRisk = 'HIGH';
+        }
+
+        if (debouncedSearch && debouncedSearch.trim()) {
+          params.search = debouncedSearch.trim();
+        }
+
+        const studRes = await api.getInstitutionStudents(params);
 
         if (isMounted) {
-          let menteesList = [];
-          if (studRes.status === 'fulfilled' && (Array.isArray(studRes.value) || studRes.value?.items)) {
-            menteesList = Array.isArray(studRes.value) ? studRes.value : (studRes.value.items || []);
-          }
-
-          // If cleanName search was empty, retry with full mentorName
-          if (menteesList.length === 0) {
-            try {
-              const fullRes = await api.getInstitutionStudents({ mentor: mentorName });
-              menteesList = Array.isArray(fullRes) ? fullRes : (fullRes?.items || []);
-            } catch {}
-          }
-
-          // Fallback to verified profile cohort if still empty
-          if (menteesList.length === 0) {
-            try {
-              const verRes = await api.getInstitutionStudents({ recordType: 'verified_profile' });
-              menteesList = Array.isArray(verRes) ? verRes : (verRes?.items || []);
-            } catch {}
-          }
-
-          if (menteesList.length > 0) {
-            setMentees(menteesList);
+          if (studRes?.items) {
+            setMentees(studRes.items);
+            setTotalMentees(studRes.total || 0);
+            setTotalPages(studRes.total_pages || Math.ceil((studRes.total || 0) / 50) || 1);
             setIsLiveApi(true);
-            setNewTaskRoll(menteesList[0].id);
-            setNewTaskName(menteesList[0].name);
+
+            if (studRes.items.length > 0) {
+              setNewTaskRoll(studRes.items[0].id);
+              setNewTaskName(studRes.items[0].name);
+            }
+
+            if (studRes.mentor_summary) {
+              setMentorStats(studRes.mentor_summary);
+              setVerifiedCount(studRes.mentor_summary.verified_count || 0);
+              setCohortCount(studRes.mentor_summary.cohort_count || 0);
+              setHighRiskCount(studRes.mentor_summary.high_risk_count || 0);
+              setWithBacklogsCount(studRes.mentor_summary.with_backlogs_count || 0);
+              if (studRes.mentor_summary.distribution) {
+                setRiskDistribution(studRes.mentor_summary.distribution);
+              }
+            }
+          } else if (Array.isArray(studRes)) {
+            setMentees(studRes);
+            setTotalMentees(studRes.length);
+            setTotalPages(1);
+            setIsLiveApi(true);
           } else {
             setMentees(MOCK_STUDENTS.slice(0, 3));
-          }
-
-          // Interventions
-          let intervList = [];
-          if (intervRes.status === 'fulfilled' && Array.isArray(intervRes.value) && intervRes.value.length > 0) {
-            intervList = intervRes.value;
-          } else {
-            try {
-              const retryInterv = await api.getInterventions(mentorName);
-              if (Array.isArray(retryInterv) && retryInterv.length > 0) {
-                intervList = retryInterv;
-              }
-            } catch {}
-          }
-
-          if (intervList.length > 0) {
-            setInterventions(intervList);
-          } else {
-            setInterventions([
-              {
-                id: 1,
-                student_roll_no: 'STU-2024-042',
-                student_name: 'Aarav Sharma',
-                department: 'Computer Science & Engineering',
-                title: 'Complete LeetCode Top 50 DSA practice set',
-                category: 'SKILL_GAP',
-                assigned_mentor: 'Prof. Rajesh Kumar',
-                status: 'OPEN',
-                due_date: 'Oct 15, 2026',
-              },
-              {
-                id: 4,
-                student_roll_no: 'STU-2024-001',
-                student_name: 'Rajesh Kumar',
-                department: 'Computer Science & Engineering',
-                title: 'Urgent Attendance Counseling & Arrears Remedial',
-                category: 'ATTENDANCE',
-                assigned_mentor: 'Prof. Rajesh Kumar',
-                status: 'OPEN',
-                due_date: 'Oct 12, 2026',
-              },
-            ]);
+            setTotalMentees(3);
+            setTotalPages(1);
           }
         }
       } catch (err) {
         console.warn('Backend unavailable, using fallback data:', err);
         if (isMounted) {
           setMentees((prev) => (prev.length > 0 ? prev : MOCK_STUDENTS.slice(0, 3)));
+          setTotalMentees(3);
+          setTotalPages(1);
         }
       } finally {
         if (isMounted) setLoading(false);
       }
     }
-    fetchMentorData();
-    return () => { isMounted = false; };
-  }, [currentUser]);
+
+    fetchPaginatedMentees();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser, currentPage, cohortFilter, debouncedSearch]);
 
   const handleToggleIntervention = async (id) => {
     // Optimistic UI update
@@ -254,20 +311,29 @@ export default function MentorDashboard() {
     }
   };
 
+  // When connected to the live API, mentees is already queried, filtered, sorted, and paginated by the server.
+  // In fallback or offline mode, compute reactive client-side filter.
   const filteredMentees = useMemo(() => {
-    if (!searchQuery.trim()) return mentees;
+    if (isLiveApi) return mentees;
+    let list = mentees;
+    if (cohortFilter === 'verified_profile') {
+      list = list.filter((s) => s.recordType === 'verified_profile');
+    } else if (cohortFilter === 'high_risk') {
+      list = list.filter((s) => s.academicRisk === 'HIGH' || (s.backlogs && s.backlogs > 0));
+    }
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return mentees.filter(
+    return list.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
         s.id.toLowerCase().includes(q) ||
         s.department.toLowerCase().includes(q)
     );
-  }, [searchQuery, mentees]);
+  }, [isLiveApi, mentees, cohortFilter, searchQuery]);
 
   const atRiskCount = useMemo(() => {
-    return mentees.filter((s) => s.academicRisk === 'HIGH' || s.academicRisk === 'MEDIUM' || (s.backlogs && s.backlogs > 0)).length;
-  }, [mentees]);
+    return highRiskCount || mentorStats.high_risk_count || mentees.filter((s) => s.academicRisk === 'HIGH' || s.academicRisk === 'MEDIUM' || (s.backlogs && s.backlogs > 0)).length;
+  }, [highRiskCount, mentorStats.high_risk_count, mentees]);
 
   const openInterventionsCount = useMemo(() => {
     return interventions.filter((i) => i.status === 'OPEN').length;
@@ -543,23 +609,12 @@ export default function MentorDashboard() {
               </button>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '50%',
-                    backgroundColor: '#10B981',
-                    color: '#FFFFFF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 700,
-                    fontSize: '0.84rem',
-                    border: '2px solid #A7F3D0',
-                  }}
-                >
-                  RK
-                </div>
+                <StudentAvatar
+                  src={currentUser?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80'}
+                  name={currentUser?.name || 'Prof. Rajesh Kumar'}
+                  id={currentUser?.roll_no || 'FAC-CSE-104'}
+                  size={38}
+                />
                 <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
                     {currentUser?.name || 'Prof. Rajesh Kumar'}
@@ -662,7 +717,7 @@ export default function MentorDashboard() {
                   {openInterventionsCount} Active Tasks
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.8)' }}>
-                  Assigned across {mentees.length} CSE students
+                  Assigned across {(mentorStats.total_mentees || totalMentees).toLocaleString()} CSE students
                 </div>
               </div>
             </div>
@@ -705,7 +760,7 @@ export default function MentorDashboard() {
                   </div>
                   <div>
                     <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>
-                      {loading ? '...' : totalMentees.toLocaleString()}
+                      {loading && !mentorStats.total_mentees ? '...' : (mentorStats.total_mentees || totalMentees).toLocaleString()}
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>Assigned CSE Mentees</div>
                     <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700, marginTop: '2px' }}>
@@ -743,7 +798,7 @@ export default function MentorDashboard() {
                     <GraduationCap size={22} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>86.2%</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>{mentorStats.avg_success_score ? `${mentorStats.avg_success_score}%` : '86.2%'}</div>
                     <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>CSE Success Score</div>
                     <div style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 700, marginTop: '2px' }}>
                       ▲ +3.4% above campus avg
@@ -780,10 +835,10 @@ export default function MentorDashboard() {
                     <AlertTriangle size={22} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>{atRiskCount}</div>
+                    <div style={{ fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.1 }}>{atRiskCount.toLocaleString()}</div>
                     <div style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 500 }}>At-Risk Mentees</div>
                     <div style={{ fontSize: '0.72rem', color: '#EF4444', fontWeight: 700, marginTop: '2px' }}>
-                      Action required: backlogs/attendance
+                      Action required: {withBacklogsCount.toLocaleString()} with active backlogs
                     </div>
                   </div>
                 </div>
@@ -964,13 +1019,13 @@ export default function MentorDashboard() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={MENTOR_DISTRIBUTION}
+                          data={riskDistribution}
                           innerRadius={44}
                           outerRadius={64}
                           paddingAngle={3}
                           dataKey="value"
                         >
-                          {MENTOR_DISTRIBUTION.map((entry, index) => (
+                          {riskDistribution.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
@@ -985,24 +1040,26 @@ export default function MentorDashboard() {
                         textAlign: 'center',
                       }}
                     >
-                      <div style={{ fontSize: '1rem', fontWeight: 800 }}>{mentees.length}</div>
-                      <div style={{ fontSize: '0.65rem', color: '#64748B' }}>Mentees</div>
+                      <div style={{ fontSize: '1rem', fontWeight: 800 }}>{(mentorStats.total_mentees || totalMentees).toLocaleString()}</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748B' }}>Total Mentees</div>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.80rem' }}>
-                    {MENTOR_DISTRIBUTION.map((item) => (
+                    {riskDistribution.map((item) => (
                       <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.color }} />
                         <span style={{ color: '#64748B' }}>{item.name}</span>
-                        <strong style={{ marginLeft: 'auto', paddingLeft: '8px' }}>{item.value}%</strong>
+                        <strong style={{ marginLeft: 'auto', paddingLeft: '8px' }}>
+                          {item.count !== undefined ? `${item.count.toLocaleString()} (${item.value}%)` : `${item.value}%`}
+                        </strong>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 <div style={{ backgroundColor: '#F8FAFC', padding: '10px', borderRadius: '8px', fontSize: '0.76rem', color: '#475569' }}>
-                  💡 <strong>Mentor Recommendation:</strong> 1 student has &gt;1 active backlogs. Schedule 1-on-1 academic counseling.
+                  💡 <strong>Mentor Recommendation:</strong> {withBacklogsCount.toLocaleString()} students have active backlogs. Prioritize 1-on-1 academic counseling.
                 </div>
               </div>
             </div>
@@ -1022,7 +1079,7 @@ export default function MentorDashboard() {
                   <span style={{ fontSize: '0.78rem', color: '#64748B' }}>Individual telemetry, academic risk score, and LMS assignment velocity</span>
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                  Showing Page {currentPage} of {totalPages} ({totalMentees.toLocaleString()} total assigned)
+                  Showing Page {currentPage} of {totalPages} ({totalMentees.toLocaleString()} matching records)
                 </div>
               </div>
 
@@ -1042,7 +1099,7 @@ export default function MentorDashboard() {
                     cursor: 'pointer',
                   }}
                 >
-                  All Assigned Mentees ({totalMentees.toLocaleString()})
+                  All Assigned Mentees ({(mentorStats.total_mentees || totalMentees).toLocaleString()})
                 </button>
                 <button
                   type="button"
@@ -1074,7 +1131,7 @@ export default function MentorDashboard() {
                     cursor: 'pointer',
                   }}
                 >
-                  High Academic Risk
+                  High Academic Risk ({highRiskCount.toLocaleString()})
                 </button>
               </div>
 
@@ -1123,7 +1180,22 @@ export default function MentorDashboard() {
                             />
                             <div>
                               <div style={{ fontWeight: 700 }}>{s.name}</div>
-                              <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{s.id}</div>
+                              <div style={{ fontSize: '0.72rem', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>{s.id}</span>
+                                <span
+                                  style={{
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    backgroundColor: s.recordType === 'verified_profile' ? '#ECFDF5' : '#F1F5F9',
+                                    color: s.recordType === 'verified_profile' ? '#059669' : '#64748B',
+                                    border: s.recordType === 'verified_profile' ? '1px solid #A7F3D0' : '1px solid #E2E8F0',
+                                  }}
+                                >
+                                  {s.recordType === 'verified_profile' ? 'Verified (100%)' : 'Benchmark (94%)'}
+                                </span>
+                              </div>
                             </div>
                           </td>
                           <td style={{ padding: '12px 8px' }}>{s.year || '3rd Year'}</td>

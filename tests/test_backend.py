@@ -452,8 +452,10 @@ def test_dashboard_50_students_restriction():
 
 
 def test_mentor_dashboard_mentees_and_interventions():
+    headers = _get_mentor_headers()
+
     # 1. Verified cohort filter retrieves the 3 verified mentees assigned to Rajesh Kumar
-    res_ver = client.get("/api/institution/students?mentor=Rajesh%20Kumar&record_type=verified_profile", headers=_get_mentor_headers())
+    res_ver = client.get("/api/institution/students?mentor=Rajesh%20Kumar&record_type=verified_profile", headers=headers)
     assert res_ver.status_code == 200
     ver_data = res_ver.json()
     assert isinstance(ver_data, list)
@@ -463,8 +465,19 @@ def test_mentor_dashboard_mentees_and_interventions():
     assert "STU-2024-001" in roll_numbers  # Rajesh Kumar
     assert "STU-2024-112" in roll_numbers  # Ananya Verma
 
-    # 2. Full assigned mentee query retrieves all 20,447 assigned students with server-side pagination (50/page)
-    res_page = client.get("/api/institution/students?mentor=Rajesh%20Kumar&page=1&page_size=50", headers=_get_mentor_headers())
+    # 2. Dedicated mentor summary endpoint returns live database calculations
+    res_sum = client.get("/api/institution/mentor/summary?mentor=Rajesh%20Kumar", headers=headers)
+    assert res_sum.status_code == 200
+    sdata = res_sum.json()
+    assert sdata["total_mentees"] == 20447, f"Expected 20447 mentees, got {sdata['total_mentees']}"
+    assert sdata["verified_count"] == 3
+    assert sdata["cohort_count"] == 20444
+    assert sdata["high_risk_count"] == 6858
+    assert sdata["with_backlogs_count"] == 7089
+    assert len(sdata["distribution"]) == 3
+
+    # 3. Full assigned mentee query retrieves all 20,447 assigned students with server-side pagination (50/page)
+    res_page = client.get("/api/institution/students?mentor=Rajesh%20Kumar&page=1&page_size=50", headers=headers)
     assert res_page.status_code == 200
     pdata = res_page.json()
     assert pdata["total"] == 20447, f"Expected 20447 total assigned mentees in DB, got {pdata['total']}"
@@ -474,9 +487,26 @@ def test_mentor_dashboard_mentees_and_interventions():
     # Verified profiles are prioritized at the top of the assigned roster
     first_rolls = [s["roll_no"] for s in pdata["items"][:3]]
     assert "STU-2024-042" in first_rolls or "STU-2024-001" in first_rolls or "STU-2024-112" in first_rolls
+    # In assigned roster, initial benchmark students follow with high risk and active backlogs
+    assert all(s["academicRisk"] == "HIGH" for s in pdata["items"][3:20])
+    assert all(s["backlogs"] == 3 for s in pdata["items"][3:20])
 
-    # 3. Interventions endpoint returns the mentor's genuine active interventions
-    interv_res = client.get("/api/institution/interventions?mentor=Rajesh%20Kumar", headers=_get_mentor_headers())
+    # 4. High Risk filter retrieves exactly 6,858 high-risk mentees
+    res_high = client.get("/api/institution/students?mentor=Rajesh%20Kumar&academic_risk=HIGH&page=1&page_size=50", headers=headers)
+    assert res_high.status_code == 200
+    hdata = res_high.json()
+    assert hdata["total"] == 6858
+    assert all(s["academicRisk"] == "HIGH" for s in hdata["items"])
+
+    # 5. Page 2 returns disjoint set of 50 students
+    res_p2 = client.get("/api/institution/students?mentor=Rajesh%20Kumar&page=2&page_size=50", headers=headers)
+    assert res_p2.status_code == 200
+    p2_items = res_p2.json()["items"]
+    assert len(p2_items) == 50
+    assert len(set(s["id"] for s in pdata["items"]).intersection(set(s["id"] for s in p2_items))) == 0
+
+    # 6. Interventions endpoint returns the mentor's genuine active interventions
+    interv_res = client.get("/api/institution/interventions?mentor=Rajesh%20Kumar", headers=headers)
     assert interv_res.status_code == 200
     intervs = interv_res.json()
     assert len(intervs) >= 2
@@ -1161,6 +1191,56 @@ def test_audit_logs_recorded():
     assert cnt > 0, "Audit logs should record operations"
 
 
+def test_provenance_filters_and_record_counts():
+    headers = _get_admin_headers()
+
+    # 1. Summary Endpoint Record Counts & Metadata
+    sum_res = client.get("/api/institution/summary", headers=headers)
+    assert sum_res.status_code == 200
+    sdata = sum_res.json()
+    assert sdata["total_students"] == 50008
+    assert sdata["total_accessible_records"] == 50008
+    assert sdata["displayed_students_count"] == 50
+    assert sdata["verified_students_count"] == 8
+    assert sdata["cohort_records_count"] == 50000
+
+    # 2. Main Executive Cohort Endpoint: returns exactly 50 students
+    all_res = client.get("/api/institution/students", headers=headers)
+    assert all_res.status_code == 200
+    all_students = all_res.json()
+    assert len(all_students) == 50
+
+    verified_in_all = [s for s in all_students if s["recordType"] == "verified_profile"]
+    benchmark_in_all = [s for s in all_students if s["recordType"] == "anonymous_cohort"]
+    assert len(verified_in_all) == 8
+    assert len(benchmark_in_all) == 42
+    assert len(set(s["id"] for s in all_students)) == 50
+    assert len(set(s["name"] for s in all_students)) == 50
+
+    # 3. Provenance Filter: Verified Profiles Only
+    vf_res = client.get("/api/institution/students?record_type=verified_profile", headers=headers)
+    assert vf_res.status_code == 200
+    vf_students = vf_res.json()
+    assert len(vf_students) == 8
+    for s in vf_students:
+        assert s["recordType"] == "verified_profile"
+        assert s["dataCompleteness"] == 100.0
+        assert "Official University Registrar" in s["sourceProvenance"]
+        assert s["assignedMentor"] in ["Prof. Rajesh Kumar", "Dr. Sunita Sharma", "Prof. K. Murthy"]
+
+    # 4. Provenance Filter: Anonymous Benchmark Cohort Only
+    bm_res = client.get("/api/institution/students?record_type=anonymous_cohort", headers=headers)
+    assert bm_res.status_code == 200
+    bm_students = bm_res.json()
+    assert len(bm_students) == 42
+    for s in bm_students:
+        assert s["recordType"] == "anonymous_cohort"
+        assert s["dataCompleteness"] == 94.1
+        assert "Kaggle Benchmark Dataset" in s["sourceProvenance"]
+        assert "STU-2024-" in s["id"]
+        assert not s["name"].startswith("Student ")
+
+
 if __name__ == "__main__":
     test_health()
     test_auth_login_admin()
@@ -1202,4 +1282,5 @@ if __name__ == "__main__":
     test_registration_roles_and_approval()
     test_student_profile_update_branch_and_semester()
     test_institutional_approval_workflow_comprehensive_12_cases()
-    print("ALL 38 BACKEND UNIT TESTS PASSED SUCCESSFULLY!")
+    test_provenance_filters_and_record_counts()
+    print("ALL 39 BACKEND UNIT TESTS PASSED SUCCESSFULLY!")

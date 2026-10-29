@@ -414,6 +414,7 @@ def seed_benchmark_kaggle_dataset(cursor, conn):
             "Chemical": "Chemical Engineering"
         }
 
+        from backend.identity_service import get_deterministic_student_name, get_deterministic_avatar_url
         records = []
         # Index 42 onwards corresponds to STU-00043 to STU-50000 (49,958 records)
         for row in df.iloc[42:].itertuples():
@@ -446,10 +447,13 @@ def seed_benchmark_kaggle_dataset(cursor, conn):
 
             mentor = "Prof. Vihaan Singh" if ("computer" in dept.lower() or "information" in dept.lower()) else ("Dr. Sunita Sharma" if "elec" in dept.lower() else "Prof. K. Murthy")
 
+            full_name = get_deterministic_student_name(roll_no)
+            avatar_url = get_deterministic_avatar_url(roll_no)
+
             records.append((
-                roll_no, None, f"Benchmark Record #{idx + 1}", dept, "3rd Year", 6, cgpa, backlogs,
+                roll_no, None, full_name, dept, "3rd Year", 6, cgpa, backlogs,
                 att, coding, dsa, apt, comm, 80.0, score, acad_prob, acad_band, round(plac_prob, 2), plac_band,
-                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+                avatar_url,
                 mentor, "anonymous_cohort", "Kaggle Benchmark Dataset (kaggle.csv - 50,000 Records)", 94.1
             ))
 
@@ -760,6 +764,17 @@ def seed_initial_data():
     current_benchmark_count = cursor.fetchone()[0]
     if current_benchmark_count < 50000:
         seed_benchmark_kaggle_dataset(cursor, conn)
+
+    # 8. Ensure all benchmark students have unique realistic identities & avatars
+    cursor.execute("""
+        SELECT COUNT(*) FROM students 
+        WHERE record_type = 'anonymous_cohort' 
+          AND (full_name LIKE 'Benchmark%' OR full_name LIKE 'Student %' OR full_name IS NULL)
+    """)
+    placeholder_count = cursor.fetchone()[0]
+    if placeholder_count > 0:
+        from backend.identity_service import update_database_student_identities
+        update_database_student_identities()
 
     conn.commit()
     conn.close()

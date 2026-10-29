@@ -14,11 +14,12 @@ import hashlib
 from typing import Optional, List
 from datetime import datetime, timezone
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from fastapi import APIRouter, Query, HTTPException, Depends, status, Response, Security
 from fastapi.security import HTTPAuthorizationCredentials
 from backend.database import get_db_connection, record_audit_log
-from backend.auth import get_current_user, require_roles, decode_access_token, security
+from backend.auth import get_current_user, require_roles, decode_access_token, security, hash_password
+from backend.identity_service import get_deterministic_student_name, get_deterministic_avatar_url
 from ml_service import calculate_student_success_score
 
 router = APIRouter(prefix="/api/institution", tags=["Institution Analytics"])
@@ -77,6 +78,29 @@ class StudentCreateRequest(BaseModel):
     lms_assignment_completion_pct: float = 80.0
     assigned_mentor: Optional[str] = "Prof. Rajesh Kumar"
     avatar_url: Optional[str] = None
+
+
+class FacultyEnrollRequest(BaseModel):
+    staff_id: str
+    first_name: str
+    last_name: str
+    email: EmailStr
+    department: str
+    designation: Optional[str] = "Assistant Professor"
+    phone_number: Optional[str] = None
+    status: Optional[str] = "ACTIVE"
+
+
+class PlacementOfficerEnrollRequest(BaseModel):
+    staff_id: str
+    first_name: str
+    last_name: str
+    email: EmailStr
+    department: Optional[str] = "Career & Corporate Relations"
+    designation: Optional[str] = "Placement Officer"
+    phone_number: Optional[str] = None
+    status: Optional[str] = "ACTIVE"
+
 
 
 class CohortSimulationRequest(BaseModel):
@@ -340,14 +364,30 @@ async def get_students(
     else:
         # Mentor specific query: retrieve genuine students assigned to this mentor without being constrained
         # by the arbitrary 50 IDs of the main executive campus dashboard overview.
+        # Pre-fetch intervention rolls for this mentor to avoid slow correlated subquery evaluation per row
+        interv_p = ["%rajesh%", "%vihaan%"] if ("vihaan" in mentor.lower() or "rajesh" in mentor.lower()) else [f"%{mentor.strip().lower()}%"]
+        interv_w = "(LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?)" if len(interv_p) == 2 else "LOWER(assigned_mentor) LIKE ?"
+        cursor.execute(f"SELECT student_roll_no FROM interventions WHERE {interv_w}", interv_p)
+        interv_rolls = [r[0] for r in cursor.fetchall() if r[0]]
+
         base_query = "FROM students WHERE 1=1"
-        m = f"%{mentor.strip().lower()}%"
         if "vihaan" in mentor.lower() or "rajesh" in mentor.lower():
-            base_query += " AND (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ? OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?))"
-            params.extend(["%rajesh%", "%vihaan%", "%rajesh%", "%vihaan%"])
+            if interv_rolls:
+                pl = ",".join("?" for _ in interv_rolls)
+                base_query += f" AND (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ? OR roll_no IN ({pl}))"
+                params.extend(["%rajesh%", "%vihaan%"] + interv_rolls)
+            else:
+                base_query += " AND (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?)"
+                params.extend(["%rajesh%", "%vihaan%"])
         else:
-            base_query += " AND (LOWER(assigned_mentor) LIKE ? OR roll_no IN (SELECT student_roll_no FROM interventions WHERE LOWER(assigned_mentor) LIKE ?))"
-            params.extend([m, m])
+            m = f"%{mentor.strip().lower()}%"
+            if interv_rolls:
+                pl = ",".join("?" for _ in interv_rolls)
+                base_query += f" AND (LOWER(assigned_mentor) LIKE ? OR roll_no IN ({pl}))"
+                params.extend([m] + interv_rolls)
+            else:
+                base_query += " AND LOWER(assigned_mentor) LIKE ?"
+                params.extend([m])
 
         # Filter by record_type only if explicitly requested (e.g. 'verified_profile' or 'anonymous_cohort')
         if record_type and record_type.strip().lower() not in ("all", ""):
@@ -435,7 +475,16 @@ async def get_students(
     # Priority to verified profiles when viewing all in default order (success_score desc),
     # but when user explicitly selects a different sort column (e.g. CGPA, attendance, backlogs) or toggles asc,
     # respect strict column ordering across the entire 50-student cohort
-    if (not record_type or record_type.lower() == "all") and (not sort_by or sort_by == "success_score") and (not sort_order or sort_order.lower() == "desc"):
+    if mentor and (not sort_by or sort_by in ("academic_risk", "risk", "default")):
+        # High-risk students first, then medium-risk, then low-risk students. Within each risk level, prioritize students with more backlogs.
+        # Verified profiles assigned to mentor stay at the top of their respective groups or cohort as tested.
+        order_clause = """ ORDER BY 
+            (CASE WHEN record_type = 'verified_profile' THEN 0 ELSE 1 END) ASC,
+            (CASE academic_risk_band WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END) ASC,
+            backlogs DESC,
+            cgpa ASC,
+            overall_attendance_pct ASC"""
+    elif (not record_type or record_type.lower() == "all") and (not sort_by or sort_by == "success_score") and (not sort_order or sort_order.lower() == "desc"):
         order_clause = f" ORDER BY (CASE WHEN record_type = 'verified_profile' THEN 0 ELSE 1 END), {order_col} {order_dir}"
     else:
         order_clause = f" ORDER BY {order_col} {order_dir}"
@@ -452,6 +501,65 @@ async def get_students(
     type_count_sql = f"SELECT record_type, COUNT(*) as cnt {base_query} GROUP BY record_type"
     cursor.execute(type_count_sql, params)
     type_counts = {r["record_type"]: r["cnt"] for r in cursor.fetchall()}
+
+    mentor_summary = None
+    if mentor:
+        m_params = []
+        if "vihaan" in mentor.lower() or "rajesh" in mentor.lower():
+            if interv_rolls:
+                pl = ",".join("?" for _ in interv_rolls)
+                m_base = f"FROM students WHERE (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ? OR roll_no IN ({pl}))"
+                m_params.extend(["%rajesh%", "%vihaan%"] + interv_rolls)
+            else:
+                m_base = "FROM students WHERE (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?)"
+                m_params.extend(["%rajesh%", "%vihaan%"])
+        else:
+            m = f"%{mentor.strip().lower()}%"
+            if interv_rolls:
+                pl = ",".join("?" for _ in interv_rolls)
+                m_base = f"FROM students WHERE (LOWER(assigned_mentor) LIKE ? OR roll_no IN ({pl}))"
+                m_params.extend([m] + interv_rolls)
+            else:
+                m_base = "FROM students WHERE LOWER(assigned_mentor) LIKE ?"
+                m_params.extend([m])
+
+        cursor.execute(f"""
+            SELECT 
+                COUNT(*) as total_mentees,
+                SUM(CASE WHEN record_type = 'verified_profile' THEN 1 ELSE 0 END) as verified_count,
+                SUM(CASE WHEN record_type = 'anonymous_cohort' THEN 1 ELSE 0 END) as cohort_count,
+                SUM(CASE WHEN academic_risk_band = 'HIGH' THEN 1 ELSE 0 END) as high_risk_count,
+                SUM(CASE WHEN academic_risk_band = 'MEDIUM' THEN 1 ELSE 0 END) as medium_risk_count,
+                SUM(CASE WHEN academic_risk_band = 'LOW' THEN 1 ELSE 0 END) as low_risk_count,
+                SUM(CASE WHEN backlogs > 0 THEN 1 ELSE 0 END) as with_backlogs_count,
+                AVG(cgpa) as avg_cgpa,
+                AVG(overall_attendance_pct) as avg_attendance,
+                AVG(success_score) as avg_success_score
+            {m_base}
+        """, m_params)
+        m_row = cursor.fetchone()
+        if m_row:
+            tot = m_row["total_mentees"] or 0
+            hi = m_row["high_risk_count"] or 0
+            med = m_row["medium_risk_count"] or 0
+            lo = m_row["low_risk_count"] or 0
+            mentor_summary = {
+                "total_mentees": tot,
+                "verified_count": m_row["verified_count"] or 0,
+                "cohort_count": m_row["cohort_count"] or 0,
+                "high_risk_count": hi,
+                "medium_risk_count": med,
+                "low_risk_count": lo,
+                "with_backlogs_count": m_row["with_backlogs_count"] or 0,
+                "avg_cgpa": round(m_row["avg_cgpa"] or 7.0, 2),
+                "avg_attendance": round(m_row["avg_attendance"] or 75.0, 1),
+                "avg_success_score": round(m_row["avg_success_score"] or 65.0, 1),
+                "distribution": [
+                    {"name": "On Track (Low Risk)", "value": round((lo / tot * 100), 1) if tot > 0 else 0.0, "count": lo, "color": "#10B981"},
+                    {"name": "Moderate Risk", "value": round((med / tot * 100), 1) if tot > 0 else 0.0, "count": med, "color": "#F59E0B"},
+                    {"name": "High Risk (Action Needed)", "value": round((hi / tot * 100), 1) if tot > 0 else 0.0, "count": hi, "color": "#EF4444"},
+                ]
+            }
 
     if page is not None:
         p = max(1, page)
@@ -494,7 +602,7 @@ async def get_students(
         {
             "id": r["roll_no"],
             "roll_no": r["roll_no"],
-            "name": r["full_name"],
+            "name": (r["full_name"] if r["full_name"] and not str(r["full_name"]).startswith("Benchmark") and not str(r["full_name"]).startswith("Student ") else get_deterministic_student_name(r["roll_no"])),
             "department": r["department"],
             "year": r["year"],
             "semester": r["semester"],
@@ -511,7 +619,7 @@ async def get_students(
             "placementRiskProb": r["placement_risk_prob"],
             "topRiskFactor": _compute_risk_factor(r),
             "assignedMentor": (r["assigned_mentor"] if "assigned_mentor" in r.keys() and r["assigned_mentor"] else "Prof. Rajesh Kumar"),
-            "avatar": r["avatar_url"],
+            "avatar": (r["avatar_url"] if r["avatar_url"] else get_deterministic_avatar_url(r["roll_no"])),
             "codingSkills": r["coding_skills"],
             "dsaScore": r["dsa_score"],
             "aptitudeScore": r["aptitude_score"],
@@ -526,7 +634,7 @@ async def get_students(
 
     if page is not None:
         ps = max(1, min(50, page_size or 50))
-        return {
+        resp = {
             "items": student_list,
             "total": total_matching,
             "page": page,
@@ -539,8 +647,200 @@ async def get_students(
                 "database_total": 50008
             }
         }
+        if mentor_summary:
+            resp["mentor_summary"] = mentor_summary
+        return resp
 
     return student_list
+
+
+@router.post("/mentors")
+def enroll_faculty_mentor(
+    req: FacultyEnrollRequest,
+    current_user: dict = Depends(require_roles(["admin", "mentor"]))
+):
+    """
+    Administratively enrolls a new faculty/mentor into the users table and makes them
+    available for student mentoring assignments.
+    """
+    staff_id = req.staff_id.strip().upper()
+    clean_email = req.email.strip().lower()
+    first_name = req.first_name.strip()
+    last_name = req.last_name.strip()
+    full_name = f"{first_name} {last_name}".strip()
+    dept = req.department.strip()
+    designation = req.designation.strip() if req.designation else "Faculty Mentor"
+    phone = req.phone_number.strip() if req.phone_number else None
+    acc_status = req.status.strip().upper() if req.status and req.status.strip().upper() in ("ACTIVE", "INACTIVE") else "ACTIVE"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Check duplicate staff_id
+    cursor.execute("SELECT id FROM users WHERE LOWER(roll_no) = LOWER(?)", (staff_id,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"A faculty member with Staff ID '{staff_id}' already exists.")
+
+    # Check duplicate email
+    cursor.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", (clean_email,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"An account with email '{clean_email}' already exists.")
+
+    default_password_hash = hash_password("Mentor@2026!")
+    avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={staff_id}"
+
+    cursor.execute("""
+    INSERT INTO users (
+        email, roll_no, password_hash, full_name, first_name, last_name, phone_number,
+        role, role_label, department, avatar_url, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'mentor', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """, (
+        clean_email, staff_id, default_password_hash, full_name, first_name, last_name, phone,
+        designation, dept, avatar, acc_status
+    ))
+    new_id = cursor.lastrowid
+
+    record_audit_log(
+        conn,
+        current_user.get("email"),
+        current_user.get("role"),
+        "FACULTY_ENROLLED",
+        "users",
+        str(new_id),
+        f"Enrolled faculty mentor {full_name} ({staff_id}) in {dept}"
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": f"Faculty mentor '{full_name}' ({staff_id}) enrolled successfully.",
+        "mentor": {
+            "id": new_id,
+            "name": full_name,
+            "full_name": full_name,
+            "staff_id": staff_id,
+            "email": clean_email,
+            "department": dept,
+            "designation": designation,
+            "role": "mentor",
+            "assigned_students_count": 0,
+            "open_interventions_count": 0,
+            "status": acc_status
+        }
+    }
+
+
+@router.post("/placement-officers")
+def enroll_placement_officer(
+    req: PlacementOfficerEnrollRequest,
+    current_user: dict = Depends(require_roles(["admin", "tpo"]))
+):
+    """
+    Administratively enrolls a new placement officer into the users table.
+    """
+    staff_id = req.staff_id.strip().upper()
+    clean_email = req.email.strip().lower()
+    first_name = req.first_name.strip()
+    last_name = req.last_name.strip()
+    full_name = f"{first_name} {last_name}".strip()
+    dept = req.department.strip() if req.department else "Career & Corporate Relations"
+    designation = req.designation.strip() if req.designation else "Placement Officer"
+    phone = req.phone_number.strip() if req.phone_number else None
+    acc_status = req.status.strip().upper() if req.status and req.status.strip().upper() in ("ACTIVE", "INACTIVE") else "ACTIVE"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Check duplicate staff_id
+    cursor.execute("SELECT id FROM users WHERE LOWER(roll_no) = LOWER(?)", (staff_id,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"A staff member with ID '{staff_id}' already exists.")
+
+    # Check duplicate email
+    cursor.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(?)", (clean_email,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"An account with email '{clean_email}' already exists.")
+
+    default_password_hash = hash_password("TPO@2026!")
+    avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={staff_id}"
+
+    cursor.execute("""
+    INSERT INTO users (
+        email, roll_no, password_hash, full_name, first_name, last_name, phone_number,
+        role, role_label, department, avatar_url, status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'tpo', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    """, (
+        clean_email, staff_id, default_password_hash, full_name, first_name, last_name, phone,
+        designation, dept, avatar, acc_status
+    ))
+    new_id = cursor.lastrowid
+
+    record_audit_log(
+        conn,
+        current_user.get("email"),
+        current_user.get("role"),
+        "PLACEMENT_OFFICER_ENROLLED",
+        "users",
+        str(new_id),
+        f"Enrolled placement officer {full_name} ({staff_id}) in {dept}"
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "message": f"Placement officer '{full_name}' ({staff_id}) enrolled successfully.",
+        "officer": {
+            "id": new_id,
+            "name": full_name,
+            "full_name": full_name,
+            "staff_id": staff_id,
+            "email": clean_email,
+            "department": dept,
+            "designation": designation,
+            "role": "tpo",
+            "status": acc_status
+        }
+    }
+
+
+@router.get("/placement-officers")
+def get_placement_officers(
+    current_user: dict = Depends(require_roles(["admin", "tpo", "mentor"]))
+):
+    """
+    Returns placement officer directory.
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT u.id, u.full_name, u.email, u.roll_no, u.department, u.role_label, u.role, u.status
+        FROM users u
+        WHERE u.role = 'tpo'
+        ORDER BY u.full_name ASC
+    """)
+    rows = c.fetchall()
+    conn.close()
+
+    return [
+        {
+            "id": r["id"],
+            "name": r["full_name"],
+            "full_name": r["full_name"],
+            "staff_id": r["roll_no"],
+            "email": r["email"],
+            "department": r["department"],
+            "role_label": r["role_label"],
+            "role": r["role"],
+            "status": r["status"]
+        }
+        for r in rows
+    ]
 
 
 @router.get("/students/export")
@@ -662,7 +962,7 @@ async def export_students_csv(
 
 
 @router.post("/students")
-async def create_student(
+def create_student(
     req: StudentCreateRequest,
     current_user: dict = Depends(require_roles(["admin", "mentor", "tpo"]))
 ):
@@ -782,7 +1082,7 @@ async def assign_mentor(
 
 
 @router.get("/mentors")
-async def get_mentors(
+def get_mentors(
     current_user: dict = Depends(require_roles(["admin", "mentor", "tpo"]))
 ):
     """
@@ -821,6 +1121,95 @@ async def get_mentors(
         }
         for r in rows
     ]
+
+
+@router.get("/mentor/summary")
+async def get_mentor_summary(
+    mentor: Optional[str] = None,
+    current_user: dict = Depends(require_roles(["admin", "mentor", "tpo"]))
+):
+    """
+    Returns live mentor totals, verified vs benchmark counts, and risk distribution
+    computed directly from SQLite database records for the specified mentor.
+    """
+    target_mentor = mentor or current_user.get("full_name") or current_user.get("name") or "Prof. Rajesh Kumar"
+    clean_name = target_mentor.replace("Prof.", "").replace("Dr.", "").strip()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    interv_p = ["%rajesh%", "%vihaan%"] if ("vihaan" in clean_name.lower() or "rajesh" in clean_name.lower()) else [f"%{clean_name.lower()}%"]
+    interv_w = "(LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?)" if len(interv_p) == 2 else "LOWER(assigned_mentor) LIKE ?"
+    cursor.execute(f"SELECT student_roll_no FROM interventions WHERE {interv_w}", interv_p)
+    interv_rolls = [r[0] for r in cursor.fetchall() if r[0]]
+
+    params = []
+    if "vihaan" in clean_name.lower() or "rajesh" in clean_name.lower():
+        if interv_rolls:
+            pl = ",".join("?" for _ in interv_rolls)
+            where_clause = f"WHERE (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ? OR roll_no IN ({pl}))"
+            params.extend(["%rajesh%", "%vihaan%"] + interv_rolls)
+        else:
+            where_clause = "WHERE (LOWER(assigned_mentor) LIKE ? OR LOWER(assigned_mentor) LIKE ?)"
+            params.extend(["%rajesh%", "%vihaan%"])
+    else:
+        m = f"%{clean_name.lower()}%"
+        if interv_rolls:
+            pl = ",".join("?" for _ in interv_rolls)
+            where_clause = f"WHERE (LOWER(assigned_mentor) LIKE ? OR roll_no IN ({pl}))"
+            params.extend([m] + interv_rolls)
+        else:
+            where_clause = "WHERE LOWER(assigned_mentor) LIKE ?"
+            params.extend([m])
+
+    sql = f"""
+        SELECT 
+            COUNT(*) as total_mentees,
+            SUM(CASE WHEN record_type = 'verified_profile' THEN 1 ELSE 0 END) as verified_count,
+            SUM(CASE WHEN record_type = 'anonymous_cohort' THEN 1 ELSE 0 END) as cohort_count,
+            SUM(CASE WHEN academic_risk_band = 'HIGH' THEN 1 ELSE 0 END) as high_risk_count,
+            SUM(CASE WHEN academic_risk_band = 'MEDIUM' THEN 1 ELSE 0 END) as medium_risk_count,
+            SUM(CASE WHEN academic_risk_band = 'LOW' THEN 1 ELSE 0 END) as low_risk_count,
+            SUM(CASE WHEN backlogs > 0 THEN 1 ELSE 0 END) as with_backlogs_count,
+            AVG(cgpa) as avg_cgpa,
+            AVG(overall_attendance_pct) as avg_attendance,
+            AVG(success_score) as avg_success_score
+        FROM students
+        {where_clause}
+    """
+    cursor.execute(sql, params)
+    row = cursor.fetchone()
+    conn.close()
+
+    total = row["total_mentees"] if row and row["total_mentees"] else 0
+    high = row["high_risk_count"] if row and row["high_risk_count"] else 0
+    med = row["medium_risk_count"] if row and row["medium_risk_count"] else 0
+    low = row["low_risk_count"] if row and row["low_risk_count"] else 0
+
+    high_pct = round((high / total * 100), 1) if total > 0 else 0.0
+    med_pct = round((med / total * 100), 1) if total > 0 else 0.0
+    low_pct = round((low / total * 100), 1) if total > 0 else 0.0
+
+    distribution = [
+        {"name": "On Track (Low Risk)", "value": low_pct, "count": low, "color": "#10B981"},
+        {"name": "Moderate Risk", "value": med_pct, "count": med, "color": "#F59E0B"},
+        {"name": "High Risk (Action Needed)", "value": high_pct, "count": high, "color": "#EF4444"},
+    ]
+
+    return {
+        "mentor": target_mentor,
+        "total_mentees": total,
+        "verified_count": row["verified_count"] if row and row["verified_count"] else 0,
+        "cohort_count": row["cohort_count"] if row and row["cohort_count"] else 0,
+        "high_risk_count": high,
+        "medium_risk_count": med,
+        "low_risk_count": low,
+        "with_backlogs_count": row["with_backlogs_count"] if row and row["with_backlogs_count"] else 0,
+        "avg_cgpa": round(row["avg_cgpa"] or 7.0, 2),
+        "avg_attendance": round(row["avg_attendance"] or 75.0, 1),
+        "avg_success_score": round(row["avg_success_score"] or 65.0, 1),
+        "distribution": distribution,
+    }
 
 
 @router.get("/interventions")

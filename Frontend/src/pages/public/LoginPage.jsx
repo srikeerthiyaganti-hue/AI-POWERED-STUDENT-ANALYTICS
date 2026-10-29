@@ -1,23 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  ArrowRight,
   Building2,
   GraduationCap,
   Briefcase,
   Award,
   ShieldCheck,
-  CheckCircle,
-  HelpCircle,
   Sparkles,
   AlertCircle,
-  KeyRound,
-  UserCheck,
   Loader2,
+  ArrowRight,
+  KeyRound,
+  CheckCircle2,
+  Info,
 } from 'lucide-react';
 import BrandLogo from '../../components/common/BrandLogo';
 import { useAuth } from '../../context/AuthContext';
@@ -27,125 +22,78 @@ const DEMO_ROLES = [
     key: 'admin',
     portalRole: 'admin',
     label: 'Institution Officer',
-    badge: 'DEMO',
+    badge: 'DEMO ACCESS',
     name: 'Dr. R. Kumar',
+    staffId: 'EMP-ADMIN-01',
     email: 'admin@codebuffet.edu',
     password: 'CodeBuffet@2026!',
     icon: Building2,
     color: '#2563EB',
-    desc: 'Campus executive analytics, 50k cohort distribution & institutional policy',
-  },
-  {
-    key: 'student',
-    portalRole: 'student',
-    label: 'Student',
-    badge: 'DEMO',
-    name: 'Aarav Sharma',
-    email: 'STU-2024-042',
-    password: 'Student@2026!',
-    icon: GraduationCap,
-    color: '#10B981',
-    desc: 'Personal success cockpit, academic risk factors, What-If simulation & AI assistant',
+    path: '/institution/dashboard',
+    desc: 'Campus executive analytics, 50k cohort distribution, cross-department risk metrics & institutional governance.',
   },
   {
     key: 'mentor',
     portalRole: 'admin',
-    label: 'Faculty',
-    badge: 'DEMO',
+    label: 'Faculty Mentor',
+    badge: 'DEMO ACCESS',
     name: 'Prof. Rajesh Kumar',
+    staffId: 'FAC-CSE-104',
     email: 'rajesh.kumar@codebuffet.edu',
     password: 'Mentor@2026!',
     icon: Award,
     color: '#8B5CF6',
-    desc: 'Mentee caseload monitoring, intervention tasks & AI academic copilot',
+    path: '/mentor/dashboard',
+    desc: 'Assigned mentee caseload monitoring, active backlog interventions & AI academic mentoring copilot.',
   },
   {
     key: 'tpo',
     portalRole: 'admin',
     label: 'Placement Officer',
-    badge: 'DEMO',
+    badge: 'DEMO ACCESS',
     name: 'Vikram Malhotra',
+    staffId: 'TPO-OFFICER-02',
     email: 'vikram.tpo@codebuffet.edu',
     password: 'TPO@2026!',
     icon: Briefcase,
-    color: '#F59E0B',
-    desc: 'Placement pipeline, eligibility matching & company recruitment funnel',
+    color: '#D97706',
+    path: '/placement/dashboard',
+    desc: 'Placement pipeline, eligibility matching & company recruitment funnel.',
+  },
+  {
+    key: 'student',
+    portalRole: 'student',
+    label: 'Student',
+    badge: 'DEMO ACCESS',
+    name: 'Aarav Sharma',
+    staffId: 'STU-2024-042',
+    email: 'stu-2024-042@codebuffet.edu',
+    password: 'Student@2026!',
+    icon: GraduationCap,
+    color: '#10B981',
+    path: '/student/dashboard',
+    desc: 'Personal success cockpit, academic risk factors, What-If simulation & AI assistant.',
   },
 ];
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, authLoading, backendStatus } = useAuth();
+  const { loginWithDemo, authLoading, backendStatus } = useAuth();
 
-  // Mode: 'demo' | 'real'
-  const [loginMode, setLoginMode] = useState('demo');
-
-  // Real Account Form States (strictly empty defaults)
-  const [realPortal, setRealPortal] = useState('institution'); // 'institution' | 'student'
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-
-  // Demo Account States
   const [selectedDemoKey, setSelectedDemoKey] = useState('admin');
-  const [demoIdentifier, setDemoIdentifier] = useState(DEMO_ROLES[0].email);
-  const [demoPassword, setDemoPassword] = useState(DEMO_ROLES[0].password);
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [showResetModal, setShowResetModal] = useState(false);
+  const [launchingRole, setLaunchingRole] = useState(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
-  // Switch between Demo and Real account modes
-  const handleModeChange = (mode) => {
-    setLoginMode(mode);
+  // Execute Demo Login
+  const handleLaunchDemo = async (roleKey) => {
+    const targetKey = roleKey || selectedDemoKey;
+    const targetRole = DEMO_ROLES.find((d) => d.key === targetKey) || DEMO_ROLES[0];
     setError('');
-    if (mode === 'real') {
-      setIdentifier('');
-      setPassword('');
-    } else {
-      const activeDemo = DEMO_ROLES.find((d) => d.key === selectedDemoKey) || DEMO_ROLES[0];
-      setDemoIdentifier(activeDemo.email);
-      setDemoPassword(activeDemo.password);
-    }
-  };
+    setLaunchingRole(targetKey);
 
-  // Demo Role Card selection
-  const handleSelectDemoRole = (roleItem) => {
-    setSelectedDemoKey(roleItem.key);
-    setDemoIdentifier(roleItem.email);
-    setDemoPassword(roleItem.password);
-    setError('');
-  };
-
-  // Execute Login
-  const handleLoginSubmit = async (e, isDemo = false) => {
-    if (e) e.preventDefault();
-    setError('');
-
-    const targetId = isDemo ? demoIdentifier.trim() : identifier.trim();
-    const targetPass = isDemo ? demoPassword.trim() : password.trim();
-
-    if (!targetId) {
-      setError(
-        realPortal === 'student'
-          ? 'Please enter your Registration Number or Student Email.'
-          : 'Please enter your Institutional Email or Employee ID.'
-      );
-      return;
-    }
-
-    if (!targetPass) {
-      setError('Please enter your password.');
-      return;
-    }
-
-    const activeDemo = DEMO_ROLES.find((d) => d.key === selectedDemoKey);
-    const targetRole = isDemo ? activeDemo?.portalRole || 'admin' : (realPortal === 'student' ? 'student' : 'admin');
-
-    setSubmitting(true);
     try {
-      const res = await login(targetId, targetPass, targetRole);
+      const res = await loginWithDemo(targetKey);
       if (res?.user) {
         if (res.user.role === 'student') {
           navigate('/student/dashboard');
@@ -158,9 +106,9 @@ export default function LoginPage() {
         }
       }
     } catch (err) {
-      setError(err.message || 'Authentication failed. Please verify your credentials.');
+      setError(err.message || 'Demo authentication failed. Please verify that the backend is running.');
     } finally {
-      setSubmitting(false);
+      setLaunchingRole(null);
     }
   };
 
@@ -174,12 +122,12 @@ export default function LoginPage() {
         backgroundColor: '#FFFFFF',
         position: 'relative',
         overflow: 'hidden',
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif',",
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
       }}
       className="login-container"
     >
       {/* =========================================================================
-          LEFT SIDE: AUTHENTICATION FORM & DEMO / REAL CONTROLS
+          LEFT SIDE: DEMO ACCESS PORTAL & ROLE SELECTOR
           ========================================================================= */}
       <div
         style={{
@@ -211,25 +159,26 @@ export default function LoginPage() {
             ← Platform Overview
           </Link>
           <button
-            onClick={() => setShowResetModal(true)}
+            onClick={() => setShowInfoModal(true)}
             style={{
               background: 'none',
               border: 'none',
               color: 'var(--color-text-secondary, #64748B)',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '5px',
               cursor: 'pointer',
-              fontSize: '0.88rem',
+              fontSize: '0.86rem',
+              fontWeight: 500,
             }}
           >
-            <HelpCircle size={15} />
-            <span>Security Policy</span>
+            <Info size={15} />
+            <span>Demo Guide</span>
           </button>
         </div>
 
-        {/* Center Main Form */}
-        <div style={{ maxWidth: '500px', width: '100%', margin: '0 auto' }}>
+        {/* Center Main Content */}
+        <div style={{ maxWidth: '520px', width: '100%', margin: '0 auto' }}>
           {/* Centered Brand Logo */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem', textAlign: 'center' }}>
             <BrandLogo variant="light" size="large" />
@@ -247,9 +196,13 @@ export default function LoginPage() {
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 color: '#2563EB',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
               }}
             >
-              SECURE ACCESS
+              <Sparkles size={14} />
+              <span>DEMO EVALUATION PORTAL</span>
             </div>
             <div
               style={{
@@ -274,84 +227,19 @@ export default function LoginPage() {
           <h1
             style={{
               fontFamily: 'var(--font-serif, serif)',
-              fontSize: '2rem',
+              fontSize: '1.85rem',
               fontWeight: 700,
               color: '#0F172A',
-              lineHeight: 1.15,
-              marginBottom: '0.3rem',
+              lineHeight: 1.2,
+              marginBottom: '0.35rem',
             }}
           >
             Welcome to CODEBUFFET<span style={{ color: '#2563EB' }}>.</span>
           </h1>
 
-          <p style={{ color: '#64748B', fontSize: '0.90rem', marginBottom: '1.25rem' }}>
-            Sign in to access personalized student telemetry and predictive risk analytics.
+          <p style={{ color: '#64748B', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: '1.25rem' }}>
+            Select an evaluation persona below to instantly launch into that role’s dashboard with verified institutional telemetry.
           </p>
-
-          {/* =========================================================================
-              TWO MODES TOGGLE: DEMO ACCOUNT | REAL ACCOUNT
-              ========================================================================= */}
-          <div
-            style={{
-              display: 'flex',
-              backgroundColor: '#F1F5F9',
-              border: '1px solid #E2E8F0',
-              padding: '4px',
-              borderRadius: '8px',
-              gap: '4px',
-              marginBottom: '1.25rem',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => handleModeChange('demo')}
-              style={{
-                flex: 1,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '9px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                fontSize: '0.86rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                backgroundColor: loginMode === 'demo' ? '#2563EB' : 'transparent',
-                color: loginMode === 'demo' ? '#FFFFFF' : '#475569',
-                boxShadow: loginMode === 'demo' ? '0 1px 3px rgba(37,99,235,0.3)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <Sparkles size={16} />
-              <span>Demo Account Mode</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleModeChange('real')}
-              style={{
-                flex: 1,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '9px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                fontSize: '0.86rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                backgroundColor: loginMode === 'real' ? '#2563EB' : 'transparent',
-                color: loginMode === 'real' ? '#FFFFFF' : '#475569',
-                boxShadow: loginMode === 'real' ? '0 1px 3px rgba(37,99,235,0.3)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <UserCheck size={16} />
-              <span>Real Account Mode</span>
-            </button>
-          </div>
 
           {/* Error Message Banner */}
           {error && (
@@ -374,52 +262,53 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* =========================================================================
-              MODE 1: DEMO ACCOUNT (4 Role Cards & Verified Review)
-              ========================================================================= */}
-          {loginMode === 'demo' ? (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
-                  Select an Evaluator Demo Persona:
-                </div>
-                <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                  Uses demonstration synthetic cohort
-                </div>
-              </div>
+          {/* 4 Demo Role Selection Cards */}
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
+              Choose a Demo Role:
+            </div>
 
-              {/* 4 Demo Role Cards */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '10px',
-                  marginBottom: '16px',
-                }}
-              >
-                {DEMO_ROLES.map((r) => {
-                  const Icon = r.icon;
-                  const isSelected = selectedDemoKey === r.key;
-                  return (
-                    <div
-                      key={r.key}
-                      onClick={() => handleSelectDemoRole(r)}
-                      style={{
-                        padding: '12px',
-                        borderRadius: '10px',
-                        border: `1.5px solid ${isSelected ? r.color : '#E2E8F0'}`,
-                        backgroundColor: isSelected ? `${r.color}0D` : '#F8FAFC',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        position: 'relative',
-                      }}
-                    >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '10px',
+                marginBottom: '14px',
+              }}
+            >
+              {DEMO_ROLES.map((r) => {
+                const Icon = r.icon;
+                const isSelected = selectedDemoKey === r.key;
+                const isLaunching = launchingRole === r.key;
+
+                return (
+                  <div
+                    key={r.key}
+                    onClick={() => {
+                      setSelectedDemoKey(r.key);
+                      setError('');
+                    }}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: '12px',
+                      border: `2px solid ${isSelected ? r.color : '#E2E8F0'}`,
+                      backgroundColor: isSelected ? `${r.color}0A` : '#F8FAFC',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      boxShadow: isSelected ? `0 4px 12px ${r.color}25` : 'none',
+                    }}
+                  >
+                    <div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                         <div
                           style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '6px',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
                             backgroundColor: `${r.color}15`,
                             color: r.color,
                             display: 'flex',
@@ -427,13 +316,13 @@ export default function LoginPage() {
                             justifyContent: 'center',
                           }}
                         >
-                          <Icon size={16} />
+                          <Icon size={18} />
                         </div>
                         <span
                           style={{
-                            fontSize: '0.66rem',
+                            fontSize: '0.65rem',
                             fontWeight: 700,
-                            padding: '1px 5px',
+                            padding: '2px 6px',
                             borderRadius: '4px',
                             backgroundColor: isSelected ? r.color : '#E2E8F0',
                             color: isSelected ? '#FFFFFF' : '#475569',
@@ -442,403 +331,138 @@ export default function LoginPage() {
                           {r.badge}
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', marginBottom: '2px' }}>
+
+                      <div style={{ fontSize: '0.90rem', fontWeight: 700, color: '#0F172A', marginBottom: '2px' }}>
                         {r.label}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {r.name}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Verified Credentials Review & Sign-in Box */}
-              <div
-                style={{
-                  padding: '16px',
-                  borderRadius: '10px',
-                  border: '1px solid #E2E8F0',
-                  backgroundColor: '#F8FAFC',
-                  marginBottom: '16px',
-                }}
-              >
-                <div style={{ fontSize: '0.76rem', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
-                  Active Demo Credentials (Authenticates with Live Backend):
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.72rem', color: '#64748B', marginBottom: '2px' }}>
-                      Login Identifier
-                    </label>
-                    <input
-                      type="text"
-                      value={demoIdentifier}
-                      readOnly
-                      style={{
-                        width: '100%',
-                        padding: '6px 8px',
-                        fontSize: '0.80rem',
-                        borderRadius: '6px',
-                        border: '1px solid #CBD5E1',
-                        backgroundColor: '#FFFFFF',
-                        color: '#0F172A',
-                        fontWeight: 600,
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.72rem', color: '#64748B', marginBottom: '2px' }}>
-                      Password
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={demoPassword}
-                        readOnly
-                        style={{
-                          width: '100%',
-                          padding: '6px 28px 6px 8px',
-                          fontSize: '0.80rem',
-                          borderRadius: '6px',
-                          border: '1px solid #CBD5E1',
-                          backgroundColor: '#FFFFFF',
-                          color: '#0F172A',
-                          fontWeight: 600,
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        style={{
-                          position: 'absolute',
-                          right: '6px',
-                          top: '6px',
-                          background: 'none',
-                          border: 'none',
-                          color: '#64748B',
-                          cursor: 'pointer',
-                          padding: 0,
-                        }}
-                      >
-                        {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleLoginSubmit(null, true)}
-                  disabled={submitting || authLoading}
-                  style={{
-                    width: '100%',
-                    padding: '11px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: selectedDemoMeta.color,
-                    color: '#FFFFFF',
-                    fontWeight: 600,
-                    fontSize: '0.90rem',
-                    cursor: submitting || authLoading ? 'not-allowed' : 'pointer',
-                    opacity: submitting || authLoading ? 0.7 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  {submitting || authLoading ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Authenticating {selectedDemoMeta.label}...
-                    </>
-                  ) : (
-                    <>
-                      Sign In as Demo {selectedDemoMeta.label} <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Mode Switch Helper */}
-              <div style={{ textAlign: 'center', fontSize: '0.84rem', color: '#64748B' }}>
-                Have a registered real account?{' '}
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('real')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#2563EB',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
-                  Switch to Real Account
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* =========================================================================
-                MODE 2: REAL ACCOUNT LOGIN (Standard form with empty inputs)
-                ========================================================================= */
-            <div>
-              {/* Portal Selector */}
-              <div
-                style={{
-                  display: 'flex',
-                  backgroundColor: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  padding: '3px',
-                  borderRadius: '6px',
-                  gap: '4px',
-                  marginBottom: '1rem',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setRealPortal('institution')}
-                  style={{
-                    flex: 1,
-                    padding: '7px 10px',
-                    borderRadius: '4px',
-                    border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    backgroundColor: realPortal === 'institution' ? '#2563EB' : 'transparent',
-                    color: realPortal === 'institution' ? '#FFFFFF' : '#475569',
-                  }}
-                >
-                  Institution Portal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRealPortal('student')}
-                  style={{
-                    flex: 1,
-                    padding: '7px 10px',
-                    borderRadius: '4px',
-                    border: 'none',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    backgroundColor: realPortal === 'student' ? '#2563EB' : 'transparent',
-                    color: realPortal === 'student' ? '#FFFFFF' : '#475569',
-                  }}
-                >
-                  Student Portal
-                </button>
-              </div>
-
-              <form onSubmit={(e) => handleLoginSubmit(e, false)} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {/* Identifier Field */}
-                <div>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      color: '#0F172A',
-                      marginBottom: '4px',
-                    }}
-                  >
-                    {realPortal === 'student' ? 'Registration / Roll Number or Email' : 'Institutional Email or Staff ID'}
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#64748B',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      {realPortal === 'student' ? <GraduationCap size={17} /> : <Mail size={17} />}
-                    </div>
-                    <input
-                      type="text"
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      placeholder={realPortal === 'student' ? 'e.g. STU-2024-042 or name@univ.edu' : 'e.g. name@university.edu'}
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem 0.75rem 0.75rem 2.45rem',
-                        fontSize: '0.9rem',
-                        border: '1px solid #CBD5E1',
-                        borderRadius: '8px',
-                        backgroundColor: '#FFFFFF',
-                        color: '#0F172A',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Password Field */}
-                <div>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: '0.78rem',
-                      fontWeight: 600,
-                      color: '#0F172A',
-                      marginBottom: '4px',
-                    }}
-                  >
-                    Password
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#64748B',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <Lock size={17} />
-                    </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem 2.5rem 0.75rem 2.45rem',
-                        fontSize: '0.9rem',
-                        border: '1px solid #CBD5E1',
-                        borderRadius: '8px',
-                        backgroundColor: '#FFFFFF',
-                        color: '#0F172A',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLaunchDemo(r.key);
+                      }}
+                      disabled={authLoading}
                       style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
+                        marginTop: '10px',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
                         border: 'none',
-                        color: '#64748B',
-                        cursor: 'pointer',
-                        padding: 0,
+                        backgroundColor: isSelected ? r.color : '#E2E8F0',
+                        color: isSelected ? '#FFFFFF' : '#1E293B',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: authLoading ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      {isLaunching ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          <span>Launching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>1-Click Launch</span>
+                          <ArrowRight size={12} />
+                        </>
+                      )}
                     </button>
                   </div>
-                </div>
+                );
+              })}
+            </div>
+          </div>
 
-                {/* Remember Me & Forgot Password */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      style={{ borderRadius: '4px', accentColor: '#2563EB' }}
-                    />
-                    <span>Remember me</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowResetModal(true)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#2563EB',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: '0.82rem',
-                    }}
-                  >
-                    Forgot password?
-                  </button>
-                </div>
+          {/* Detailed Credentials Card for the Selected Persona */}
+          <div
+            style={{
+              padding: '14px 16px',
+              borderRadius: '12px',
+              border: `1px solid ${selectedDemoMeta.color}35`,
+              backgroundColor: `${selectedDemoMeta.color}08`,
+              marginBottom: '16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle2 size={16} style={{ color: selectedDemoMeta.color }} />
+                <span style={{ fontSize: '0.80rem', fontWeight: 700, color: '#0F172A' }}>
+                  Configured Demo Account: {selectedDemoMeta.label}
+                </span>
+              </div>
+              <span style={{ fontSize: '0.70rem', color: '#64748B', fontWeight: 600 }}>
+                {selectedDemoMeta.staffId}
+              </span>
+            </div>
 
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={submitting || authLoading}
-                  style={{
-                    width: '100%',
-                    padding: '0.85rem',
-                    fontSize: '0.92rem',
-                    fontWeight: 600,
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: '#2563EB',
-                    color: '#FFFFFF',
-                    cursor: submitting || authLoading ? 'not-allowed' : 'pointer',
-                    opacity: submitting || authLoading ? 0.7 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    marginTop: '4px',
-                  }}
-                >
-                  {submitting || authLoading ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      Sign In to Platform <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-              </form>
+            <p style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.45, margin: '0 0 10px 0' }}>
+              {selectedDemoMeta.desc}
+            </p>
 
-              {/* Links: Register and Switch to Demo */}
-              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'center', fontSize: '0.84rem', color: '#64748B' }}>
-                <div>
-                  Don't have an account?{' '}
-                  <Link to="/register" style={{ color: '#2563EB', fontWeight: 600, textDecoration: 'none' }}>
-                    Create account here
-                  </Link>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1' }}>
+                <div style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>Identifier</div>
+                <div style={{ fontSize: '0.78rem', color: '#0F172A', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {selectedDemoMeta.email}
                 </div>
-                <div>
-                  Evaluating CODEBUFFET?{' '}
-                  <button
-                    type="button"
-                    onClick={() => handleModeChange('demo')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#2563EB',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    Explore Demo Accounts
-                  </button>
+              </div>
+              <div style={{ backgroundColor: '#FFFFFF', padding: '6px 10px', borderRadius: '6px', border: '1px solid #CBD5E1' }}>
+                <div style={{ fontSize: '0.68rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 600 }}>Password</div>
+                <div style={{ fontSize: '0.78rem', color: '#0F172A', fontWeight: 700 }}>
+                  {selectedDemoMeta.password}
                 </div>
               </div>
             </div>
-          )}
+
+            <button
+              type="button"
+              onClick={() => handleLaunchDemo(selectedDemoKey)}
+              disabled={authLoading}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: selectedDemoMeta.color,
+                color: '#FFFFFF',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+                cursor: authLoading ? 'not-allowed' : 'pointer',
+                opacity: authLoading ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: `0 4px 14px ${selectedDemoMeta.color}40`,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {launchingRole ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Authenticating {selectedDemoMeta.label}...
+                </>
+              ) : (
+                <>
+                  Launch Demo Dashboard as {selectedDemoMeta.label} <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Quick Evaluator Note */}
+          <div style={{ textAlign: 'center', fontSize: '0.76rem', color: '#64748B', lineHeight: 1.4 }}>
+            <span>Evaluator demo environment — authenticates with seeded institutional dataset.</span>
+          </div>
         </div>
 
         {/* Bottom Footer Info */}
@@ -854,10 +478,10 @@ export default function LoginPage() {
             color: '#94A3B8',
           }}
         >
-          <div>© 2026 CODEBUFFET. All rights reserved.</div>
+          <div>© 2026 CODEBUFFET • Demo Evaluation Access</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <ShieldCheck size={14} style={{ color: '#10B981' }} />
-            <span>256-bit PBKDF2 Encrypted</span>
+            <span>Live Seed Authentication Active</span>
           </div>
         </div>
       </div>
@@ -987,9 +611,9 @@ export default function LoginPage() {
       </div>
 
       {/* =========================================================================
-          SECURITY POLICY & RESET MODAL
+          DEMO OVERVIEW MODAL
           ========================================================================= */}
-      {showResetModal && (
+      {showInfoModal && (
         <div
           style={{
             position: 'fixed',
@@ -1031,14 +655,14 @@ export default function LoginPage() {
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#0F172A' }}>
-                  Credential & Reset Policy
+                  Demo Evaluation Access
                 </h3>
-                <span style={{ fontSize: '0.78rem', color: '#64748B' }}>CODEBUFFET Identity Governance</span>
+                <span style={{ fontSize: '0.78rem', color: '#64748B' }}>CODEBUFFET Platform Evaluation</span>
               </div>
             </div>
 
             <p style={{ fontSize: '0.86rem', color: '#334155', lineHeight: 1.55, marginBottom: '1rem' }}>
-              To uphold campus data privacy compliance, automated unauthenticated password resets are strictly prohibited. Passwords are protected using <strong>PBKDF2-HMAC-SHA256</strong> with individual per-account salts.
+              This platform runs in <strong>Demo-Only Mode</strong> for hackathon and jury evaluation. Each demo role is backed by genuine backend database records and real analytics pipelines.
             </p>
 
             <div
@@ -1052,13 +676,15 @@ export default function LoginPage() {
                 marginBottom: '1.5rem',
               }}
             >
-              <div style={{ fontWeight: 600, color: '#0F172A', marginBottom: '4px' }}>How to reset credentials:</div>
-              <div>1. Contact University IT Services at <code>support@codebuffet.edu</code> with your Student/Employee Roll No.</div>
-              <div style={{ marginTop: '4px' }}>2. For local developer setup, run: <code>python -m backend.seed</code> in your terminal.</div>
+              <div style={{ fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>Supported Demo Roles:</div>
+              <div>• <strong>Institution Officer</strong> (Dr. R. Kumar): Executive campus oversight</div>
+              <div style={{ marginTop: '3px' }}>• <strong>Faculty Mentor</strong> (Prof. Rajesh Kumar): Mentorship & student caseload</div>
+              <div style={{ marginTop: '3px' }}>• <strong>Placement Officer</strong> (Vikram Malhotra): Job matching & placement pipeline</div>
+              <div style={{ marginTop: '3px' }}>• <strong>Student</strong> (Aarav Sharma): Personal telemetry & What-If simulator</div>
             </div>
 
             <button
-              onClick={() => setShowResetModal(false)}
+              onClick={() => setShowInfoModal(false)}
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -1070,7 +696,7 @@ export default function LoginPage() {
                 cursor: 'pointer',
               }}
             >
-              Understood
+              Got it
             </button>
           </div>
         </div>

@@ -149,7 +149,7 @@ export default function LandingPage() {
                   transition: 'all var(--transition-fast)',
                 }}
               >
-                <span>Sign In to CODEBUFFET</span>
+                <span>Explore Demo Platform</span>
                 <ArrowRight size={18} />
               </Link>
 
@@ -406,9 +406,9 @@ export default function LandingPage() {
                 textDecoration: 'none',
               }}
             >
-              <span>Have institutional credentials?</span>
+              <span>Evaluating CODEBUFFET?</span>
               <span style={{ color: 'var(--color-blue-bright)', fontWeight: 700, textDecoration: 'underline' }}>
-                Go to Secure Login →
+                Launch Demo Access →
               </span>
             </Link>
           </div>

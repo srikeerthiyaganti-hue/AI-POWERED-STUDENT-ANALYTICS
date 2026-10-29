@@ -17,6 +17,7 @@ sys.path.insert(0, BASE_DIR)
 
 from ml_service import calculate_student_success_score
 from backend.cohort_data import BENCHMARK_COHORT_STUDENTS
+from backend.identity_service import get_deterministic_student_name, get_deterministic_avatar_url
 
 DEFAULT_CSV_PATH = os.path.join(BASE_DIR, "kaggle.csv")
 DEFAULT_DB_PATH = os.path.join(BASE_DIR, "backend", "codebuffet.db")
@@ -136,7 +137,7 @@ def sync_csv_to_db(
             roll_no = f"STU-{idx + 1:05d}"
             raw_branch = str(getattr(row, "branch", "CSE")).strip()
             dept = BRANCH_MAP.get(raw_branch, raw_branch)
-            full_name = f"Student {idx + 1:05d}"
+            full_name = get_deterministic_student_name(roll_no)
 
             cgpa = float(row.cgpa) if pd.notnull(row.cgpa) else 7.0
             backlogs = int(row.backlogs) if pd.notnull(row.backlogs) else 0
@@ -191,8 +192,7 @@ def sync_csv_to_db(
             plac_risk_band = "HIGH" if plac_risk_prob >= 0.6 else ("MEDIUM" if plac_risk_prob >= 0.3 else "LOW")
 
             mentor = get_mentor_for_department(dept)
-            photo_id = PHOTO_IDS[idx % len(PHOTO_IDS)]
-            avatar_url = f"https://images.unsplash.com/{photo_id}?w=100&auto=format&fit=crop&q=80"
+            avatar_url = get_deterministic_avatar_url(roll_no)
 
             records_to_upsert.append((
                 roll_no,

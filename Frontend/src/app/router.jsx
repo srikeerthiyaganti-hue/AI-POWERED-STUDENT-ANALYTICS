@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '../pages/public/LandingPage';
 import LoginPage from '../pages/public/LoginPage';
-import RegisterPage from '../pages/public/RegisterPage';
+
 import CampusDashboard from '../pages/institution/CampusDashboard';
 import MentorDashboard from '../pages/institution/MentorDashboard';
 import PlacementDashboard from '../pages/institution/PlacementDashboard';
@@ -89,7 +89,7 @@ export default function AppRoutes() {
       {/* Root Route: Shows Login by default; redirects if authenticated */}
       <Route path="/" element={<RootIndexRoute />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/platform" element={<LandingPage />} />
 
       {/* Admin Institution Analytics Portal */}

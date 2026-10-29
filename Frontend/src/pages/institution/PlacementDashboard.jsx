@@ -522,23 +522,12 @@ export default function PlacementDashboard() {
               </button>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '50%',
-                    backgroundColor: '#8B5CF6',
-                    color: '#FFFFFF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 700,
-                    fontSize: '0.84rem',
-                    border: '2px solid #DDD6FE',
-                  }}
-                >
-                  VM
-                </div>
+                <StudentAvatar
+                  src={currentUser?.avatar || 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&auto=format&fit=crop&q=80'}
+                  name={currentUser?.name || 'Vikram Malhotra'}
+                  id={currentUser?.roll_no || 'TPO-OFFICER-02'}
+                  size={38}
+                />
                 <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
                     {currentUser?.name || 'Vikram Malhotra'}
@@ -1033,7 +1022,22 @@ export default function PlacementDashboard() {
                           />
                           <div>
                             <div style={{ fontWeight: 700 }}>{s.name}</div>
-                            <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{s.id}</div>
+                            <div style={{ fontSize: '0.72rem', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>{s.id}</span>
+                              <span
+                                style={{
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  backgroundColor: s.recordType === 'verified_profile' ? '#ECFDF5' : '#F1F5F9',
+                                  color: s.recordType === 'verified_profile' ? '#059669' : '#64748B',
+                                  border: s.recordType === 'verified_profile' ? '1px solid #A7F3D0' : '1px solid #E2E8F0',
+                                }}
+                              >
+                                {s.recordType === 'verified_profile' ? 'Verified (100%)' : 'Benchmark (94%)'}
+                              </span>
+                            </div>
                           </div>
                         </td>
                         <td style={{ padding: '12px 8px', fontWeight: 600 }}>{s.department}</td>
@@ -1366,6 +1370,296 @@ export default function PlacementDashboard() {
           </main>
         </div>
       </div>
+
+      {/* MATCH JOB EVALUATION MODAL */}
+      {matchModalOpen && matchingCandidate && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1.5rem',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '640px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '1.75rem',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+              border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#FAF5FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B5CF6' }}>
+                  <Sparkles size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
+                    Corporate Job Match Assessment
+                  </h3>
+                  <span style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                    Transparent skill benchmark & eligibility evaluation against corporate openings
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setMatchModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', fontSize: '1.2rem' }}
+                aria-label="Close Job Match Modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Candidate Identity Strip */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 14px',
+                borderRadius: '12px',
+                backgroundColor: isDarkMode ? '#0F172A' : '#F8FAFC',
+                border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+                marginBottom: '1rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <StudentAvatar
+                  src={matchingCandidate.avatar}
+                  name={matchingCandidate.name}
+                  id={matchingCandidate.id || matchingCandidate.roll_no}
+                  size={42}
+                />
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <strong style={{ fontSize: '0.94rem', color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
+                      {matchingCandidate.name}
+                    </strong>
+                    <span
+                      style={{
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '0.66rem',
+                        fontWeight: 700,
+                        backgroundColor: matchingCandidate.recordType === 'verified_profile' ? '#ECFDF5' : '#F1F5F9',
+                        color: matchingCandidate.recordType === 'verified_profile' ? '#059669' : '#64748B',
+                        border: `1px solid ${matchingCandidate.recordType === 'verified_profile' ? '#A7F3D0' : '#E2E8F0'}`,
+                      }}
+                    >
+                      {matchingCandidate.recordType === 'verified_profile' ? 'Verified (100%)' : 'Benchmark (94%)'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                    ID: <strong>{matchingCandidate.id || matchingCandidate.roll_no}</strong> • {matchingCandidate.department} • CGPA: <strong>{matchingCandidate.cgpa}</strong>
+                  </div>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', fontSize: '0.74rem' }}>
+                <div style={{ color: '#64748B' }}>Placement Risk:</div>
+                <strong style={{ color: matchingCandidate.placementRisk === 'HIGH' ? '#DC2626' : matchingCandidate.placementRisk === 'MEDIUM' ? '#D97706' : '#059669' }}>
+                  {matchingCandidate.placementRisk || 'LOW'}
+                </strong>
+              </div>
+            </div>
+
+            {/* Target Job Selector */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px', color: isDarkMode ? '#CBD5E1' : '#475569' }}>
+                Target Corporate Opening ({jobsData.length} available)
+              </label>
+              <select
+                value={matchingJobId}
+                onChange={(e) => handleJobSelectForMatch(Number(e.target.value))}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${isDarkMode ? '#334155' : '#CBD5E1'}`,
+                  backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                  color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                }}
+              >
+                {jobsData.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.title} — {job.company} ({job.ctc_lpa} LPA) • Min CGPA: {job.min_cgpa}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Loading State */}
+            {matchLoading && (
+              <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#8B5CF6' }}>
+                <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 10px' }} />
+                <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>Calculating Candidate-to-Role Match Score...</div>
+                <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '4px' }}>
+                  Evaluating hard corporate eligibility, DSA proficiency, coding velocity, and aptitude
+                </div>
+              </div>
+            )}
+
+            {/* Match Evaluation Results */}
+            {!matchLoading && matchResult && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Score & Eligibility Banner */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '1rem',
+                    borderRadius: '12px',
+                    backgroundColor: matchResult.eligibility_status === 'ELIGIBLE' ? (isDarkMode ? '#064E3B' : '#ECFDF5') : (isDarkMode ? '#450A0A' : '#FEF2F2'),
+                    border: `1px solid ${matchResult.eligibility_status === 'ELIGIBLE' ? '#10B981' : '#EF4444'}`,
+                  }}
+                >
+                  <div>
+                    <span
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: '9999px',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.04em',
+                        backgroundColor: matchResult.eligibility_status === 'ELIGIBLE' ? '#10B981' : '#EF4444',
+                        color: '#FFFFFF',
+                        display: 'inline-block',
+                        marginBottom: '6px',
+                      }}
+                    >
+                      {matchResult.eligibility_status === 'ELIGIBLE' ? 'ELIGIBLE FOR DRIVE' : 'CRITERIA NOT MET'}
+                    </span>
+                    <div style={{ fontSize: '0.84rem', fontWeight: 700, color: isDarkMode ? '#FFFFFF' : '#0F172A' }}>
+                      {matchResult.job?.title} @ {matchResult.job?.company}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>
+                      Package: <strong>{matchResult.job?.ctc_lpa} LPA</strong> • Min CGPA: <strong>{matchResult.job?.min_cgpa}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 900, color: matchResult.eligibility_status === 'ELIGIBLE' ? '#059669' : '#DC2626', lineHeight: 1 }}>
+                      {matchResult.match_score}%
+                    </div>
+                    <div style={{ fontSize: '0.70rem', fontWeight: 600, color: '#64748B', marginTop: '4px' }}>
+                      Role Fit Score
+                    </div>
+                  </div>
+                </div>
+
+                {/* Score vs Risk Clarification Alert */}
+                <div style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: isDarkMode ? '#0F172A' : '#F1F5F9', fontSize: '0.72rem', color: '#64748B', lineHeight: 1.4 }}>
+                  ℹ️ <strong>Independent Metric Notice:</strong> Job match score ({matchResult.match_score}%) reflects candidate suitability for {matchResult.job?.title}, distinct from placement risk ({matchingCandidate.placementRisk || 'LOW'}).
+                </div>
+
+                {/* Corporate Criteria Evaluation */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: isDarkMode ? '#E2E8F0' : '#334155' }}>
+                    Criteria Checklist & Skill Breakdown:
+                  </div>
+
+                  {/* Satisfied Criteria */}
+                  {matchResult.satisfied_criteria && matchResult.satisfied_criteria.map((crit, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#059669' }}>
+                      <CheckCircle2 size={14} style={{ flexShrink: 0, color: '#10B981' }} />
+                      <span>{crit}</span>
+                    </div>
+                  ))}
+
+                  {/* Disqualification / Hard Failures */}
+                  {matchResult.hard_eligibility_failures && matchResult.hard_eligibility_failures.map((fail, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#DC2626' }}>
+                      <AlertTriangle size={14} style={{ flexShrink: 0, color: '#EF4444' }} />
+                      <span><strong>Disqualification:</strong> {fail}</span>
+                    </div>
+                  ))}
+
+                  {/* Technical Skill Gaps */}
+                  {matchResult.skill_gaps && matchResult.skill_gaps.map((gap, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#D97706' }}>
+                      <Target size={14} style={{ flexShrink: 0, color: '#F59E0B' }} />
+                      <span><strong>Skill Gap:</strong> {gap}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Explanation text */}
+                {matchResult.explanation && (
+                  <div style={{ padding: '8px 12px', borderRadius: '8px', backgroundColor: isDarkMode ? '#334155' : '#FAF5FF', fontSize: '0.74rem', color: isDarkMode ? '#E2E8F0' : '#6B21A8', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                    <strong>TPO Recommendation:</strong> {matchResult.explanation}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Error or No Match State */}
+            {!matchLoading && !matchResult && (
+              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#EF4444', fontSize: '0.84rem' }}>
+                Unable to load match evaluation for this candidate and role. Please try again or select another job opening.
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '1.25rem', paddingTop: '1rem', borderTop: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}` }}>
+              <button
+                type="button"
+                onClick={() => setMatchModalOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                  backgroundColor: 'transparent',
+                  color: isDarkMode ? '#FFFFFF' : '#475569',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setInterviewCandidate(matchingCandidate);
+                  setMatchModalOpen(false);
+                  setMockInterviewModalOpen(true);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#8B5CF6',
+                  color: '#FFFFFF',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Briefcase size={14} />
+                <span>Schedule Mock Interview</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SCHEDULE MOCK INTERVIEW MODAL */}
       {mockInterviewModalOpen && interviewCandidate && (

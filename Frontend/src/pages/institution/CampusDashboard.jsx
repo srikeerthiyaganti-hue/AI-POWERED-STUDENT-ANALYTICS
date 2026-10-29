@@ -153,6 +153,8 @@ export default function CampusDashboard() {
 
   // Modals
   const [addStudentModalOpen, setAddStudentModalOpen] = useState(false);
+  const [addFacultyModalOpen, setAddFacultyModalOpen] = useState(false);
+  const [addPlacementOfficerModalOpen, setAddPlacementOfficerModalOpen] = useState(false);
   const [campus3DModalOpen, setCampus3DModalOpen] = useState(false);
   const [aiCopilotOpen, setAiCopilotOpen] = useState(false);
   const [interventionModalOpen, setInterventionModalOpen] = useState(false);
@@ -191,6 +193,28 @@ export default function CampusDashboard() {
   const [newStudentMentor, setNewStudentMentor] = useState('Prof. Rajesh Kumar');
   const [enrollSubmitting, setEnrollSubmitting] = useState(false);
   const [enrollNotice, setEnrollNotice] = useState('');
+
+  // Faculty/Mentor Enrollment Form State
+  const [facultyStaffId, setFacultyStaffId] = useState('');
+  const [facultyFirstName, setFacultyFirstName] = useState('');
+  const [facultyLastName, setFacultyLastName] = useState('');
+  const [facultyEmail, setFacultyEmail] = useState('');
+  const [facultyDept, setFacultyDept] = useState('Computer Science & Engineering');
+  const [facultyDesignation, setFacultyDesignation] = useState('Assistant Professor');
+  const [facultyPhone, setFacultyPhone] = useState('');
+  const [facultyStatus, setFacultyStatus] = useState('ACTIVE');
+  const [facultySubmitting, setFacultySubmitting] = useState(false);
+
+  // Placement Officer Enrollment Form State
+  const [tpoStaffId, setTpoStaffId] = useState('');
+  const [tpoFirstName, setTpoFirstName] = useState('');
+  const [tpoLastName, setTpoLastName] = useState('');
+  const [tpoEmail, setTpoEmail] = useState('');
+  const [tpoDept, setTpoDept] = useState('Career & Corporate Relations');
+  const [tpoDesignation, setTpoDesignation] = useState('Placement Officer');
+  const [tpoPhone, setTpoPhone] = useState('');
+  const [tpoStatus, setTpoStatus] = useState('ACTIVE');
+  const [tpoSubmitting, setTpoSubmitting] = useState(false);
 
   // Account Approval Workflow State
   const [approvalsList, setApprovalsList] = useState([]);
@@ -385,6 +409,13 @@ export default function CampusDashboard() {
         console.warn('Failed to fetch students from API, using fallback:', err);
         setCohortStudents(MOCK_STUDENTS);
         setTotalRecords(MOCK_STUDENTS.length);
+        const verified = MOCK_STUDENTS.filter((s) => s.recordType === 'verified_profile').length;
+        const benchmark = MOCK_STUDENTS.filter((s) => s.recordType !== 'verified_profile').length;
+        setRosterCounts({
+          verified_profiles: verified,
+          anonymous_cohort: benchmark,
+          total_records: MOCK_STUDENTS.length,
+        });
       } finally {
         if (isMounted) setIsLoadingStudents(false);
       }
@@ -478,6 +509,88 @@ export default function CampusDashboard() {
       alert(err.message || 'Failed to enroll student.');
     } finally {
       setEnrollSubmitting(false);
+    }
+  };
+
+  // 4b. Enroll Faculty / Mentor
+  const handleEnrollFaculty = async (e) => {
+    e.preventDefault();
+    if (!facultyStaffId.trim() || !facultyFirstName.trim() || !facultyLastName.trim() || !facultyEmail.trim()) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+    setFacultySubmitting(true);
+    try {
+      const payload = {
+        staff_id: facultyStaffId.trim().toUpperCase(),
+        first_name: facultyFirstName.trim(),
+        last_name: facultyLastName.trim(),
+        email: facultyEmail.trim().toLowerCase(),
+        department: facultyDept,
+        designation: facultyDesignation,
+        phone_number: facultyPhone.trim() || undefined,
+        status: facultyStatus,
+      };
+      const res = await api.enrollMentor(payload);
+      if (res?.success) {
+        setEnrollNotice(`Faculty Mentor ${res.mentor?.full_name || payload.first_name + ' ' + payload.last_name} (${payload.staff_id}) successfully enrolled!`);
+        setTimeout(() => setEnrollNotice(''), 4500);
+        setAddFacultyModalOpen(false);
+        setFacultyStaffId('');
+        setFacultyFirstName('');
+        setFacultyLastName('');
+        setFacultyEmail('');
+        setFacultyPhone('');
+        const [updatedMentors, updatedSum] = await Promise.all([
+          api.getMentors().catch(() => null),
+          api.getInstitutionSummary().catch(() => null),
+        ]);
+        if (updatedMentors && Array.isArray(updatedMentors)) setMentorsList(updatedMentors);
+        if (updatedSum) setSummaryData(updatedSum);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to enroll faculty mentor.');
+    } finally {
+      setFacultySubmitting(false);
+    }
+  };
+
+  // 4c. Enroll Placement Officer
+  const handleEnrollPlacementOfficer = async (e) => {
+    e.preventDefault();
+    if (!tpoStaffId.trim() || !tpoFirstName.trim() || !tpoLastName.trim() || !tpoEmail.trim()) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+    setTpoSubmitting(true);
+    try {
+      const payload = {
+        staff_id: tpoStaffId.trim().toUpperCase(),
+        first_name: tpoFirstName.trim(),
+        last_name: tpoLastName.trim(),
+        email: tpoEmail.trim().toLowerCase(),
+        department: tpoDept,
+        designation: tpoDesignation,
+        phone_number: tpoPhone.trim() || undefined,
+        status: tpoStatus,
+      };
+      const res = await api.enrollPlacementOfficer(payload);
+      if (res?.success) {
+        setEnrollNotice(`Placement Officer ${res.officer?.full_name || payload.first_name + ' ' + payload.last_name} (${payload.staff_id}) successfully enrolled!`);
+        setTimeout(() => setEnrollNotice(''), 4500);
+        setAddPlacementOfficerModalOpen(false);
+        setTpoStaffId('');
+        setTpoFirstName('');
+        setTpoLastName('');
+        setTpoEmail('');
+        setTpoPhone('');
+        const updatedSum = await api.getInstitutionSummary().catch(() => null);
+        if (updatedSum) setSummaryData(updatedSum);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to enroll placement officer.');
+    } finally {
+      setTpoSubmitting(false);
     }
   };
 
@@ -903,7 +1016,7 @@ export default function CampusDashboard() {
                     color: recordTypeFilter === 'all' ? '#FFFFFF' : '#64748B',
                   }}
                 >
-                  All 50 Selected ({rosterCounts.total_records || 50})
+                  All 50 Selected ({rosterCounts.total_records ?? 50})
                 </button>
                 <button
                   onClick={() => setRecordTypeFilter('verified_profile')}
@@ -918,7 +1031,7 @@ export default function CampusDashboard() {
                     color: recordTypeFilter === 'verified_profile' ? '#FFFFFF' : '#64748B',
                   }}
                 >
-                  Verified Profiles ({rosterCounts.verified_profiles || 8})
+                  Verified Profiles ({rosterCounts.verified_profiles ?? 8})
                 </button>
                 <button
                   onClick={() => setRecordTypeFilter('anonymous_cohort')}
@@ -933,7 +1046,7 @@ export default function CampusDashboard() {
                     color: recordTypeFilter === 'anonymous_cohort' ? '#FFFFFF' : '#64748B',
                   }}
                 >
-                  Benchmark Cohort ({rosterCounts.anonymous_cohort || 42})
+                  Benchmark Cohort ({rosterCounts.anonymous_cohort ?? 42})
                 </button>
               </div>
             </div>
@@ -972,6 +1085,48 @@ export default function CampusDashboard() {
               >
                 <UserPlus size={15} />
                 <span>+ Enroll Student</span>
+              </button>
+
+              <button
+                onClick={() => setAddFacultyModalOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: '#8B5CF6',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
+                }}
+              >
+                <Award size={15} />
+                <span>+ Enroll Faculty / Mentor</span>
+              </button>
+
+              <button
+                onClick={() => setAddPlacementOfficerModalOpen(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: '#D97706',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(217, 119, 6, 0.3)',
+                }}
+              >
+                <Briefcase size={15} />
+                <span>+ Enroll Placement Officer</span>
               </button>
 
               <button
@@ -2351,6 +2506,36 @@ export default function CampusDashboard() {
                     + Enroll Student
                   </button>
                   <button
+                    onClick={() => setAddFacultyModalOpen(true)}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      backgroundColor: '#8B5CF6',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + Enroll Faculty
+                  </button>
+                  <button
+                    onClick={() => setAddPlacementOfficerModalOpen(true)}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      backgroundColor: '#D97706',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + Enroll Placement Officer
+                  </button>
+                  <button
                     onClick={handleExportCSV}
                     disabled={isExporting}
                     style={{
@@ -2614,9 +2799,11 @@ export default function CampusDashboard() {
                                 cursor: 'pointer',
                               }}
                             >
-                              <option value="Prof. Rajesh Kumar">Prof. Rajesh Kumar (CSE)</option>
-                              <option value="Dr. Sunita Sharma">Dr. Sunita Sharma (ECE)</option>
-                              <option value="Prof. K. Murthy">Prof. K. Murthy (MECH)</option>
+                              {activeMentorsDisplay.map((m) => (
+                                <option key={m.id || m.name} value={m.name}>
+                                  {m.name}
+                                </option>
+                              ))}
                             </select>
                           </td>
                           <td style={{ padding: '12px 8px', textAlign: 'right' }}>
@@ -2880,9 +3067,11 @@ export default function CampusDashboard() {
                     onChange={(e) => setNewStudentMentor(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
                   >
-                    <option value="Prof. Rajesh Kumar">Prof. Rajesh Kumar (CSE)</option>
-                    <option value="Dr. Sunita Sharma">Dr. Sunita Sharma (ECE)</option>
-                    <option value="Prof. K. Murthy">Prof. K. Murthy (MECH)</option>
+                    {activeMentorsDisplay.map((m) => (
+                      <option key={m.id || m.name} value={m.name}>
+                        {m.name} ({m.department || 'Faculty'})
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -2950,6 +3139,585 @@ export default function CampusDashboard() {
           </div>
         </div>
       )}
+
+
+      {/* =========================================================================
+          MODAL: ENROLL FACULTY / MENTOR
+          ========================================================================= */}
+      {addFacultyModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 110,
+            padding: '1.5rem',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+              borderRadius: '20px',
+              width: '560px',
+              maxWidth: '95vw',
+              padding: '2rem',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
+              border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+              color: isDarkMode ? '#FFFFFF' : '#0F172A',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                    color: '#8B5CF6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Award size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Enroll Faculty / Mentor</h3>
+                  <span style={{ fontSize: '0.80rem', color: '#64748B' }}>Adds faculty to institutional mentorship governance</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setAddFacultyModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleEnrollFaculty} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Faculty / Staff ID *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. FAC-CSE-105"
+                  value={facultyStaffId}
+                  onChange={(e) => setFacultyStaffId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                    color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                    fontSize: '0.86rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Dr. Arvind"
+                    value={facultyFirstName}
+                    onChange={(e) => setFacultyFirstName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Nair"
+                    value={facultyLastName}
+                    onChange={(e) => setFacultyLastName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. arvind.nair@codebuffet.edu"
+                    value={facultyEmail}
+                    onChange={(e) => setFacultyEmail(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Contact Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. +91 98765 43210"
+                    value={facultyPhone}
+                    onChange={(e) => setFacultyPhone(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Department *
+                  </label>
+                  <select
+                    value={facultyDept}
+                    onChange={(e) => setFacultyDept(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="Computer Science & Engineering">Computer Science & Engineering</option>
+                    <option value="Information Technology">Information Technology</option>
+                    <option value="Electronics & Communication">Electronics & Communication</option>
+                    <option value="Electrical & Electronics">Electrical & Electronics</option>
+                    <option value="Mechanical Engineering">Mechanical Engineering</option>
+                    <option value="Civil Engineering">Civil Engineering</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Designation
+                  </label>
+                  <select
+                    value={facultyDesignation}
+                    onChange={(e) => setFacultyDesignation(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="Assistant Professor">Assistant Professor</option>
+                    <option value="Associate Professor">Associate Professor</option>
+                    <option value="Professor">Professor</option>
+                    <option value="Head of Department (HOD)">Head of Department (HOD)</option>
+                    <option value="Faculty Mentor">Faculty Mentor</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Account Status
+                </label>
+                <select
+                  value={facultyStatus}
+                  onChange={(e) => setFacultyStatus(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                    color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                    fontSize: '0.86rem',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="ACTIVE">ACTIVE (Authorized to Mentor Students)</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setAddFacultyModalOpen(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                    background: 'transparent',
+                    color: isDarkMode ? '#FFFFFF' : '#475569',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={facultySubmitting}
+                  style={{
+                    padding: '8px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#8B5CF6',
+                    color: '#FFFFFF',
+                    fontWeight: 700,
+                    cursor: facultySubmitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 10px rgba(139, 92, 246, 0.35)',
+                  }}
+                >
+                  {facultySubmitting ? 'Enrolling...' : 'Persist & Enroll Faculty'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: ENROLL PLACEMENT OFFICER
+          ========================================================================= */}
+      {addPlacementOfficerModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 110,
+            padding: '1.5rem',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
+              borderRadius: '20px',
+              width: '560px',
+              maxWidth: '95vw',
+              padding: '2rem',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
+              border: `1px solid ${isDarkMode ? '#334155' : '#E2E8F0'}`,
+              color: isDarkMode ? '#FFFFFF' : '#0F172A',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(217, 119, 6, 0.15)',
+                    color: '#D97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Briefcase size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Enroll Placement Officer</h3>
+                  <span style={{ fontSize: '0.80rem', color: '#64748B' }}>Adds officer to Career & Corporate Relations portal</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setAddPlacementOfficerModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleEnrollPlacementOfficer} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Placement Officer / Staff ID *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. TPO-OFFICER-03"
+                  value={tpoStaffId}
+                  onChange={(e) => setTpoStaffId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                    color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                    fontSize: '0.86rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    First Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Snehal"
+                    value={tpoFirstName}
+                    onChange={(e) => setTpoFirstName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Kulkarni"
+                    value={tpoLastName}
+                    onChange={(e) => setTpoLastName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. snehal.tpo@codebuffet.edu"
+                    value={tpoEmail}
+                    onChange={(e) => setTpoEmail(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Contact Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. +91 98765 12345"
+                    value={tpoPhone}
+                    onChange={(e) => setTpoPhone(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Department / Placement Cell *
+                  </label>
+                  <select
+                    value={tpoDept}
+                    onChange={(e) => setTpoDept(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="Career & Corporate Relations">Career & Corporate Relations</option>
+                    <option value="Training & Placement Cell">Training & Placement Cell</option>
+                    <option value="Industry Partnerships">Industry Partnerships</option>
+                    <option value="Alumni & Employer Relations">Alumni & Employer Relations</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                    Designation
+                  </label>
+                  <select
+                    value={tpoDesignation}
+                    onChange={(e) => setTpoDesignation(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                      backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                      color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                      fontSize: '0.86rem',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value="Placement Officer">Placement Officer</option>
+                    <option value="Training & Placement Officer">Training & Placement Officer</option>
+                    <option value="Placement Director">Placement Director</option>
+                    <option value="Corporate Relations Lead">Corporate Relations Lead</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '4px' }}>
+                  Account Status
+                </label>
+                <select
+                  value={tpoStatus}
+                  onChange={(e) => setTpoStatus(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                    backgroundColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+                    color: isDarkMode ? '#FFFFFF' : '#0F172A',
+                    fontSize: '0.86rem',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="ACTIVE">ACTIVE (Authorized to Manage Placements)</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setAddPlacementOfficerModalOpen(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: `1px solid ${isDarkMode ? '#475569' : '#CBD5E1'}`,
+                    background: 'transparent',
+                    color: isDarkMode ? '#FFFFFF' : '#475569',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={tpoSubmitting}
+                  style={{
+                    padding: '8px 20px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#D97706',
+                    color: '#FFFFFF',
+                    fontWeight: 700,
+                    cursor: tpoSubmitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 10px rgba(217, 119, 6, 0.35)',
+                  }}
+                >
+                  {tpoSubmitting ? 'Enrolling...' : 'Persist & Enroll Placement Officer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

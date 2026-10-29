@@ -138,15 +138,15 @@ def predict_student_risks(student: dict) -> dict:
     if cgpa is None or att is None:
         acad_band = "UNKNOWN"
         acad_prob = 0.50
-    elif cgpa < 6.0 or att < 65.0:
+    elif backlogs >= 2 or (backlogs >= 1 and att < 75.0) or att < 65.0 or cgpa < 6.0:
         acad_band = "HIGH"
-        acad_prob = round(min(0.95, 0.65 + (6.0 - min(cgpa, 6.0)) * 0.06 + (65.0 - min(att, 65.0)) * 0.005), 4)
-    elif cgpa < 7.5 or att < 75.0:
+        acad_prob = round(min(0.95, max(0.65, 0.45 + backlogs * 0.15 + (75.0 - min(att, 75.0)) * 0.01 + (6.5 - min(cgpa, 6.5)) * 0.05)), 4)
+    elif backlogs == 1 or att < 75.0 or cgpa < 7.5:
         acad_band = "MEDIUM"
-        acad_prob = round(min(0.60, max(0.20, 0.25 + (7.5 - cgpa) * 0.08 + (75.0 - att) * 0.006)), 4)
+        acad_prob = round(min(0.60, max(0.25, 0.25 + backlogs * 0.10 + (75.0 - min(att, 75.0)) * 0.008 + (7.5 - min(cgpa, 7.5)) * 0.03)), 4)
     else:
         acad_band = "LOW"
-        acad_prob = round(max(0.04, 0.15 - (cgpa - 7.5) * 0.04 - (att - 75.0) * 0.003), 4)
+        acad_prob = round(max(0.04, min(0.24, 0.08 + (7.5 - min(cgpa, 7.5)) * 0.03 + (85.0 - min(att, 85.0)) * 0.002)), 4)
 
     # 2. Independent Placement Risk Computation (Technical Competency & Assessment Decoupled Engine)
     coding = float(student.get("coding_skills")) if student.get("coding_skills") is not None else None
