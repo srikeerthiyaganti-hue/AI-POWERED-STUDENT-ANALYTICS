@@ -16,6 +16,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 sys.path.insert(0, BASE_DIR)
 
 from ml_service import calculate_student_success_score
+from backend.cohort_data import BENCHMARK_COHORT_STUDENTS
 
 DEFAULT_CSV_PATH = os.path.join(BASE_DIR, "kaggle.csv")
 DEFAULT_DB_PATH = os.path.join(BASE_DIR, "backend", "codebuffet.db")
@@ -93,26 +94,59 @@ def sync_csv_to_db(
     cursor.execute("SELECT COUNT(*) FROM students")
     pre_count = cursor.fetchone()[0]
 
-    # 3. Process each row with ML Scoring & Risk Indicators
+    # 3. First upsert the 42 curated benchmark cohort students
+    cohort_upsert_query = """
+    INSERT INTO students (
+        roll_no, user_id, full_name, department, year, semester, cgpa, backlogs,
+        overall_attendance_pct, coding_skills, dsa_score, aptitude_score,
+        communication_skills, lms_assignment_completion_pct, success_score,
+        academic_risk_prob, academic_risk_band, placement_risk_prob, placement_risk_band,
+        avatar_url, assigned_mentor, record_type, source_provenance, data_completeness
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(roll_no) DO UPDATE SET
+        department=excluded.department,
+        cgpa=excluded.cgpa,
+        backlogs=excluded.backlogs,
+        overall_attendance_pct=excluded.overall_attendance_pct,
+        coding_skills=excluded.coding_skills,
+        dsa_score=excluded.dsa_score,
+        aptitude_score=excluded.aptitude_score,
+        communication_skills=excluded.communication_skills,
+        lms_assignment_completion_pct=excluded.lms_assignment_completion_pct,
+        success_score=excluded.success_score,
+        academic_risk_prob=excluded.academic_risk_prob,
+        academic_risk_band=excluded.academic_risk_band,
+        placement_risk_prob=excluded.placement_risk_prob,
+        placement_risk_band=excluded.placement_risk_band,
+        assigned_mentor=COALESCE(students.assigned_mentor, excluded.assigned_mentor),
+        record_type=excluded.record_type,
+        source_provenance=excluded.source_provenance,
+        data_completeness=excluded.data_completeness
+    """
+    cursor.executemany(cohort_upsert_query, BENCHMARK_COHORT_STUDENTS)
+    conn.commit()
+
+    # 4. Process bulk rows from index 42 onwards (49,958 rows to reach exactly 50,000 benchmark records)
     records_to_upsert = []
     skipped_count = 0
 
-    for idx, row in df.iterrows():
+    for row in df.iloc[42:].itertuples():
+        idx = row.Index
         try:
             roll_no = f"STU-{idx + 1:05d}"
-            raw_branch = str(row.get("branch", "CSE")).strip()
+            raw_branch = str(getattr(row, "branch", "CSE")).strip()
             dept = BRANCH_MAP.get(raw_branch, raw_branch)
             full_name = f"Student {idx + 1:05d}"
 
-            cgpa = float(row["cgpa"]) if pd.notnull(row.get("cgpa")) else 7.0
-            backlogs = int(row["backlogs"]) if pd.notnull(row.get("backlogs")) else 0
-            coding = float(row["coding_skills"]) if pd.notnull(row.get("coding_skills")) else 5.0
-            dsa = float(row["dsa_score"]) if pd.notnull(row.get("dsa_score")) else 5.0
-            aptitude = float(row["aptitude_score"]) if pd.notnull(row.get("aptitude_score")) else 60.0
-            comm = float(row["communication_skills"]) if pd.notnull(row.get("communication_skills")) else 6.0
-            system_design = float(row["system_design"]) if pd.notnull(row.get("system_design")) else 5.0
-            hackathons = int(row["hackathons"]) if pd.notnull(row.get("hackathons")) else 0
-            certifications = int(row["certifications"]) if pd.notnull(row.get("certifications")) else 0
+            cgpa = float(row.cgpa) if pd.notnull(row.cgpa) else 7.0
+            backlogs = int(row.backlogs) if pd.notnull(row.backlogs) else 0
+            coding = float(row.coding_skills) if pd.notnull(row.coding_skills) else 5.0
+            dsa = float(row.dsa_score) if pd.notnull(row.dsa_score) else 5.0
+            aptitude = float(row.aptitude_score) if pd.notnull(row.aptitude_score) else 60.0
+            comm = float(row.communication_skills) if pd.notnull(row.communication_skills) else 6.0
+            system_design = float(getattr(row, "system_design", 5.0)) if pd.notnull(getattr(row, "system_design", 5.0)) else 5.0
+            hackathons = int(getattr(row, "hackathons", 0)) if pd.notnull(getattr(row, "hackathons", 0)) else 0
+            certifications = int(getattr(row, "certifications", 0)) if pd.notnull(getattr(row, "certifications", 0)) else 0
 
             # Realistic continuous attendance correlated with academic performance and backlogs
             import hashlib

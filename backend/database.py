@@ -389,6 +389,85 @@ def init_db():
     conn.close()
 
 
+def seed_benchmark_kaggle_dataset(cursor, conn):
+    """
+    Safely and efficiently loads the remaining rows from kaggle.csv (rows 43 to 50,000)
+    into the students table as anonymous benchmark cohort data.
+    Preserves all 8 verified students and the 42 active benchmark cohort students.
+    Brings total students count in SQLite database to exactly 50,008.
+    """
+    kaggle_csv_path = os.path.join(BASE_DIR, "kaggle.csv")
+    if not os.path.exists(kaggle_csv_path):
+        print(f"[BENCHMARK SEED NOTICE] {kaggle_csv_path} not found. Skipping bulk benchmark import.")
+        return
+
+    try:
+        import pandas as pd
+        df = pd.read_csv(kaggle_csv_path)
+        branch_map = {
+            "CSE": "Computer Science & Engineering",
+            "IT": "Information Technology",
+            "ECE": "Electronics & Communication",
+            "EE": "Electrical & Electronics",
+            "ME": "Mechanical Engineering",
+            "CE": "Civil Engineering",
+            "Chemical": "Chemical Engineering"
+        }
+
+        records = []
+        # Index 42 onwards corresponds to STU-00043 to STU-50000 (49,958 records)
+        for row in df.iloc[42:].itertuples():
+            idx = row.Index
+            roll_no = f"STU-{idx + 1:05d}"
+            raw_b = str(getattr(row, "branch", "CSE")).strip()
+            dept = branch_map.get(raw_b, raw_b)
+            cgpa = float(row.cgpa) if pd.notnull(row.cgpa) else 7.0
+            backlogs = int(row.backlogs) if pd.notnull(row.backlogs) else 0
+            coding = float(row.coding_skills) if pd.notnull(row.coding_skills) else 5.0
+            dsa = float(row.dsa_score) if pd.notnull(row.dsa_score) else 5.0
+            apt = float(row.aptitude_score) if pd.notnull(row.aptitude_score) else 60.0
+            comm = float(row.communication_skills) if pd.notnull(row.communication_skills) else 6.0
+            att = round(max(55.0, min(97.8, 65.0 + (cgpa - 5.5) * 6.0 - (backlogs * 5.5))), 1)
+
+            score = round(max(10.0, min(99.0, (cgpa * 4.0) + (coding * 2.5) + (dsa * 2.0) + (apt * 0.15) + (att * 0.15) - (backlogs * 3.5))), 1)
+
+            if backlogs >= 2 or (backlogs >= 1 and att < 75.0) or (att < 65.0 and cgpa < 6.5):
+                acad_band = "HIGH"
+                acad_prob = 0.75
+            elif backlogs == 1 or att < 75.0 or cgpa < 6.5:
+                acad_band = "MEDIUM"
+                acad_prob = 0.45
+            else:
+                acad_band = "LOW"
+                acad_prob = 0.15
+
+            plac_prob = min(0.95, max(0.05, 0.10 + (max(0, 6.0 - coding) * 0.12) + (max(0, 6.5 - cgpa) * 0.10)))
+            plac_band = "HIGH" if plac_prob >= 0.6 else ("MEDIUM" if plac_prob >= 0.3 else "LOW")
+
+            mentor = "Prof. Vihaan Singh" if ("computer" in dept.lower() or "information" in dept.lower()) else ("Dr. Sunita Sharma" if "elec" in dept.lower() else "Prof. K. Murthy")
+
+            records.append((
+                roll_no, None, f"Benchmark Record #{idx + 1}", dept, "3rd Year", 6, cgpa, backlogs,
+                att, coding, dsa, apt, comm, 80.0, score, acad_prob, acad_band, round(plac_prob, 2), plac_band,
+                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+                mentor, "anonymous_cohort", "Kaggle Benchmark Dataset (kaggle.csv - 50,000 Records)", 94.1
+            ))
+
+        cursor.executemany("""
+        INSERT OR IGNORE INTO students (
+            roll_no, user_id, full_name, department, year, semester, cgpa, backlogs,
+            overall_attendance_pct, coding_skills, dsa_score, aptitude_score,
+            communication_skills, lms_assignment_completion_pct, success_score,
+            academic_risk_prob, academic_risk_band, placement_risk_prob, placement_risk_band,
+            avatar_url, assigned_mentor, record_type, source_provenance, data_completeness
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, records)
+        conn.commit()
+        print(f"[BENCHMARK SEED SUCCESS] Successfully loaded {len(records)} benchmark records from {kaggle_csv_path}")
+    except Exception as e:
+        print(f"[BENCHMARK SEED ERROR] Failed to load kaggle.csv: {e}")
+
+
 def seed_initial_data():
     """
     Seeds initial hackathon/demo user accounts, 3 faculty mentors, and verified students.
@@ -523,6 +602,27 @@ def seed_initial_data():
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, s)
 
+    # 2b. Seed Benchmark Cohort (42 Synthetic Records composing the 50-student selected roster)
+    from backend.cohort_data import BENCHMARK_COHORT_STUDENTS
+    for b in BENCHMARK_COHORT_STUDENTS:
+        cursor.execute("SELECT id FROM students WHERE roll_no = ?", (b[0],))
+        if cursor.fetchone():
+            cursor.execute("""
+            UPDATE students
+            SET assigned_mentor = ?, record_type = ?, source_provenance = ?, data_completeness = ?
+            WHERE roll_no = ?
+            """, (b[20], b[21], b[22], b[23], b[0]))
+        else:
+            cursor.execute("""
+            INSERT INTO students (
+                roll_no, user_id, full_name, department, year, semester, cgpa, backlogs,
+                overall_attendance_pct, coding_skills, dsa_score, aptitude_score,
+                communication_skills, lms_assignment_completion_pct, success_score,
+                academic_risk_prob, academic_risk_band, placement_risk_prob, placement_risk_band,
+                avatar_url, assigned_mentor, record_type, source_provenance, data_completeness
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, b)
+
     # 3. Seed Mentoring Interventions (Distributed across all 3 mentors)
     interventions_to_seed = [
         ("STU-2024-042", "Aarav Sharma", "Computer Science & Engineering", "Complete LeetCode Top 50 DSA practice set", "SKILL_GAP", "Prof. Rajesh Kumar", "OPEN", "Oct 15, 2026"),
@@ -654,6 +754,12 @@ def seed_initial_data():
             INSERT INTO placement_applications (job_id, student_roll_no, student_name, department, stage, match_score, eligibility_status, notes, updated_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, app_item)
+
+    # 7. Seed Bulk Benchmark Dataset from kaggle.csv (49,958 rows to reach full 50,008 dataset)
+    cursor.execute("SELECT COUNT(*) FROM students WHERE record_type = 'anonymous_cohort'")
+    current_benchmark_count = cursor.fetchone()[0]
+    if current_benchmark_count < 50000:
+        seed_benchmark_kaggle_dataset(cursor, conn)
 
     conn.commit()
     conn.close()
